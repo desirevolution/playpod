@@ -26,7 +26,6 @@ export const english: Record<string, string> = {
     "Install using the browser menu or add to your home screen (HTTPS or localhost).",
   "Link importieren": "Import link",
   Podcasts: "Podcasts",
-  "Alle Episoden": "All episodes",
   Fehler: "Error",
   "Podcast auswählen": "Select podcast",
   "Quellen prüfen": "Check sources",

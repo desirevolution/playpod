@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+- Bibliothek: „Alle Podcasts“ als Auswahl, mobile Podcast-Liste mit Cover und Namen statt Dropdown; Tastaturhilfe auf Mobilgeräten ausgeblendet.
+
 
 - Redesign with warm neutral surfaces, restrained accents, horizontal desktop player, compact inactive sleep mode, Library navigation, mobile action sheets and reduced help text.
 - Move download actions to episode/podcast scope and storage maintenance to Settings; protect MPD and recently active browser copies during cleanup.

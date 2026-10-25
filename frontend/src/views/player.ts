@@ -243,7 +243,7 @@ export function renderPlayer(this: PlayPodApp) {
         </aside>
       </div>
     </div>
-    <p class="bottom-note">
+    <p class="bottom-note keyboard-help">
       ${t("Leertaste: Play/Pause · ← / →: 30 Sekunden · ↑ / ↓: Lautstärke ±5 % · N: Nächste · P: Player")}
     </p>
   </section>`;

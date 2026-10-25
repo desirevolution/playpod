@@ -52,3 +52,8 @@ No Docker engine, GHCR publication or GitHub release was executed in this enviro
 - Mobile: 320px Library and Settings and 390px Player fit without horizontal overflow. A 320px action sheet stays within x=12..293px; Escape dismisses it. Podcast/filter selection replaces the desktop side list/tabs.
 - Download cleanup deletes completed managed copies only, preserves catalog metadata, skips MPD/browser usage and announcement return sources, and rejects cleanup if MPD usage cannot be checked. Browser usage leases are refreshed by current clients and expire after 90 seconds without updates.
 - The old download modal, unused podcast-card/grid styles and decorative fallback covers were removed. UI route hashes and Node-RED playback behavior remain compatible. No new schema/dependencies/container.
+
+
+### Mobile Podcast-Auswahl
+
+Native aufklappbare Podcast-Liste mit Covern, Namen und Episodenzahlen; Auswahl schließt die Liste und setzt den Fokus zurück. „Alle Podcasts“ in DE/EN. Player-Tastaturhilfe bis 900px ausgeblendet. TypeScript und Produktionsbuild erfolgreich; 46 Frontend-Tests bestanden. Keine zusätzliche visuelle Geräteprüfung für diese Änderung.

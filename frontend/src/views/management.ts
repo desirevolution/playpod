@@ -7,11 +7,42 @@ import { fmt, date, icon } from "../ui";
 export function renderManagement(this: PlayPodApp) {
   const selected = this.feeds.find((f) => f.id === this.feedFilter);
   const choose = async (id: number | null) => {
+    const picker =
+      this.renderRoot.querySelector<HTMLDetailsElement>(".podcast-picker");
+    if (picker?.open) {
+      picker.open = false;
+      picker.querySelector("summary")?.focus();
+    }
     this.feedFilter = id;
     this.offset = 0;
     this.highlightedEpisode = null;
     await this.loadManagement();
   };
+  const podcasts = () =>
+    html`<nav class="podcast-list" aria-label=${t("Podcasts")}>
+      <button
+        class=${this.feedFilter === null ? "selected" : ""}
+        aria-pressed=${this.feedFilter === null}
+        @click=${() => void choose(null)}
+      >
+        ${t("Alle Podcasts")}
+      </button>
+      ${this.feeds.map(
+        (f) =>
+          html`<button
+            class=${this.feedFilter === f.id ? "selected" : ""}
+            aria-pressed=${this.feedFilter === f.id}
+            @click=${() => void choose(f.id)}
+          >
+            ${this.cover(f)}<span class="podcast-name"
+              ><strong>${f.title}</strong
+              ><small
+                >${countText(f.episode_count, "{count} Episode", "{count} Episoden")}${f.error ? html` · <span class="error-tag">${t("Fehler")}</span>` : nothing}</small
+              ></span
+            >${f.favorite ? icon("star") : nothing}
+          </button>`,
+      )}
+    </nav>`;
   return html`<section aria-label=${t("Bibliothek")}>
     <div class="library-tools">
       <input
@@ -52,39 +83,18 @@ export function renderManagement(this: PlayPodApp) {
           <h2>${t("Podcasts")}</h2>
           ${this.button("refresh", t("Alle aktualisieren"), "refresh")}
         </div>
-        <nav class="podcast-list" aria-label=${t("Podcasts")}>
-          <button
-            class=${this.feedFilter === null ? "selected" : ""}
-            aria-pressed=${this.feedFilter === null}
-            @click=${() => void choose(null)}
-          >
-            ${t("Alle Episoden")}
-          </button>
-          ${this.feeds.map(
-            (f) =>
-              html`<button
-                class=${this.feedFilter === f.id ? "selected" : ""}
-                aria-pressed=${this.feedFilter === f.id}
-                @click=${() => void choose(f.id)}
-              >
-                ${this.cover(f)}<span class="podcast-name"
-                  ><strong>${f.title}</strong
-                  ><small
-                    >${countText(f.episode_count, "{count} Episode", "{count} Episoden")}${f.error ? html` · <span class="error-tag">${t("Fehler")}</span>` : nothing}</small
-                  ></span
-                >${f.favorite ? icon("star") : nothing}
-              </button>`,
-          )}
-        </nav>
-        <label class="podcast-picker"
-          >${t("Podcast auswählen")}<select
-            .value=${String(this.feedFilter || "")}
-            @change=${(ev: Event) => void choose(Number((ev.target as HTMLSelectElement).value) || null)}
-          >
-            <option value="">${t("Alle Episoden")}</option>
-            ${this.feeds.map((f) => html`<option value=${f.id}>${f.title}</option>`)}
-          </select></label
-        >
+        ${podcasts()}
+        <details class="podcast-picker">
+          <summary>
+            ${selected ? this.cover(selected) : icon("library")}
+            <span class="podcast-name"
+              ><small>${t("Podcast auswählen")}</small
+              ><strong>${selected?.title || t("Alle Podcasts")}</strong></span
+            >
+            <span class="picker-chevron" aria-hidden="true">⌄</span>
+          </summary>
+          ${podcasts()}
+        </details>
       </aside>
       <article
         class="library-episodes anchored-section"
