@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Use full width across all views, split desktop playback columns 60:40, place playback status above the target switch and hide inactive timer readouts.
+
 - Fire-and-forget text announcement API with persistent FIFO processing, shared TTS integration and uninterrupted return to MPD after the complete batch.
 - Activity timeline with 90-day retention, initial-import summaries, playback completions, episode links and per-browser unseen badges.
 - Full-width desktop player and GitHub logo link.

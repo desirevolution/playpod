@@ -31,3 +31,9 @@
 ## Target-environment checks
 
 No Docker engine, GHCR publication or GitHub release was executed in this environment. The workflow performs native image builds and offline runtime checks when run in the repository. Real MPD/Home Assistant/MQTT output, HTTPS/PWA installation and mobile background behavior remain target-environment checks. The browser UI check does not claim real loudspeaker output. No database reset is introduced.
+
+## Layout follow-up
+
+- Removed the content width limit for every view. Desktop player columns use 3fr/2fr (60:40); the existing mobile single-column breakpoint remains.
+- Playback status now belongs to the target group above the browser switch. Timer readouts render only during playback with an enabled timer, including the mini-player; the timer selector retains its Off option.
+- All 45 frontend tests, TypeScript and the production build passed. No backend behavior changed in this follow-up.

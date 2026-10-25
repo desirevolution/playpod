@@ -192,11 +192,8 @@ nav button.active {
 }
 main {
   margin-left: 222px;
-  max-width: 1600px;
-  padding: 42px 48px 145px;
-}
-main.view-player {
   max-width: none;
+  padding: 42px 48px 145px;
 }
 .top {
   display: flex;
@@ -229,7 +226,7 @@ main.view-player {
 }
 .player-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(340px, 420px);
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
   gap: 24px;
   align-items: start;
 }
@@ -821,7 +818,7 @@ dialog .check input {
     padding: 30px 25px 145px;
   }
   .player-grid {
-    grid-template-columns: minmax(0, 1fr) minmax(285px, 0.85fr);
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
     gap: 16px;
   }
   .panel {

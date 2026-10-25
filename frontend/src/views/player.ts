@@ -153,10 +153,10 @@ export function renderPlayer(this: PlayPodApp) {
               ${timerPresets.map((v) => html`<option value=${v} .selected=${live((s?.timer.minutes || 0) === v)}>${v ? v + t(" Minuten") : t("Aus")}</option>`)}
             </select>
             ${
-              s?.state === "play"
+              s?.state === "play" && s.timer.enabled
                 ? html`<div class="timer-line">
                     <span class="timer-state"
-                      >${s?.timer.enabled ? fmt(this.displayRemaining) + (s.timer.suspended ? t(" · pausiert für Ansage") : s.phase === "announcement" && !s.timer.run_active ? t(" · ab Episode") : s.state === "play" ? "" : t(" · pausiert")) : t("Aus")}</span
+                      >${fmt(this.displayRemaining) + (s.timer.suspended ? t(" · pausiert für Ansage") : s.phase === "announcement" && !s.timer.run_active ? t(" · ab Episode") : "")}</span
                     ><button
                       data-action="extend"
                       ?disabled=${!s?.timer.enabled || this.busy}
@@ -302,7 +302,7 @@ export function mini(this: PlayPodApp) {
       ><span
         >${s.phase === "announcement" ? this.announcementLabel + " · " + (s.announcement_kind === "mode" || s.announcement_kind === "custom" ? s.announcement_text : s.current?.podcast || "") : s.current?.podcast || t("Keine Episode ausgewählt")}</span
       ></button
-    >${s.state === "play" ? html`<span class="timer-state">${s.timer.enabled ? fmt(this.displayRemaining) : t("Timer aus")}</span>` : nothing}
+    >${s.state === "play" && s.timer.enabled ? html`<span class="timer-state">${fmt(this.displayRemaining)}</span>` : nothing}
     <button
       class="icon primary"
       data-action="toggle"

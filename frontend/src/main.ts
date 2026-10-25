@@ -966,7 +966,7 @@ export class PlayPodApp extends LitElement {
           </p>
         </div>
       </aside>
-      <main class=${this.view === "player" ? "view-player" : nothing}>
+      <main>
         <header class="top">
           <div>
             <h1 tabindex="-1">
@@ -974,6 +974,9 @@ export class PlayPodApp extends LitElement {
             </h1>
           </div>
           <div class="playback-target">
+            <span class="badge playback-status"
+              >${state?.phase === "announcement" ? (state.state === "pause" ? this.announcementLabel + t(" pausiert") : this.announcementLabel + t(" läuft")) : state?.state === "play" ? t("Wiedergabe läuft") : state?.state === "pause" ? t("Pausiert") : t("Gestoppt")}</span
+            >
             ${
               this.config?.mpd_configured
                 ? html`<div class="target-control">
@@ -998,9 +1001,6 @@ export class PlayPodApp extends LitElement {
             }
             ${this.config?.mpd_configured ? html`<span class="target-hint">${this.target === "browser" ? t("Eigene Queue · MPD läuft unabhängig") : "MPD"}</span>` : nothing}
           </div>
-          <span class="badge"
-            >${state?.phase === "announcement" ? (state.state === "pause" ? this.announcementLabel + t(" pausiert") : this.announcementLabel + t(" läuft")) : state?.state === "play" ? t("Wiedergabe läuft") : state?.state === "pause" ? t("Pausiert") : t("Gestoppt")}</span
-          >
         </header>
         ${this.connectionError ? html`<div class="error-banner" role="alert">${localizeMessage(this.connectionError)}</div>` : nothing}${state?.error ? html`<div class="error-banner" role="alert">${localizeMessage(state.error)}</div>` : nothing}${this.view === "player" ? this.renderPlayer() : this.view === "management" ? this.renderManagement() : this.view === "activity" ? renderActivity.call(this) : this.renderConfig()}
       </main>
