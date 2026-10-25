@@ -1,0 +1,5 @@
+services:
+  playpod:
+    build:
+      context: .
+      dockerfile: Dockerfile.debian

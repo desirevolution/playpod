@@ -1,0 +1,422 @@
+[
+  {
+    "id": "playpod-v1-example",
+    "type": "tab",
+    "label": "PlayPod API v1",
+    "disabled": false,
+    "info": "Basisadresse im Function-Node anpassen. Toggle/Play starten mit 15 Minuten. Keine automatische Wiederholung."
+  },
+  {
+    "id": "playpod-inject-toggle",
+    "type": "inject",
+    "z": "playpod-v1-example",
+    "name": "Fernbedienung: Toggle + 15 Min.",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "topic": "toggle",
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "x": 190,
+    "y": 60,
+    "wires": [
+      [
+        "playpod-command-v1"
+      ]
+    ]
+  },
+  {
+    "id": "playpod-inject-play",
+    "type": "inject",
+    "z": "playpod-v1-example",
+    "name": "Play + 15 Min.",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "topic": "play",
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "x": 190,
+    "y": 105,
+    "wires": [
+      [
+        "playpod-command-v1"
+      ]
+    ]
+  },
+  {
+    "id": "playpod-inject-pause",
+    "type": "inject",
+    "z": "playpod-v1-example",
+    "name": "Pause",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "topic": "pause",
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "x": 190,
+    "y": 150,
+    "wires": [
+      [
+        "playpod-command-v1"
+      ]
+    ]
+  },
+  {
+    "id": "playpod-inject-next",
+    "type": "inject",
+    "z": "playpod-v1-example",
+    "name": "Nächste + 15 Min.",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "topic": "next",
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "x": 190,
+    "y": 195,
+    "wires": [
+      [
+        "playpod-command-v1"
+      ]
+    ]
+  },
+  {
+    "id": "playpod-inject-forward",
+    "type": "inject",
+    "z": "playpod-v1-example",
+    "name": "+30 Sekunden",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "topic": "forward",
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "x": 190,
+    "y": 240,
+    "wires": [
+      [
+        "playpod-command-v1"
+      ]
+    ]
+  },
+  {
+    "id": "playpod-inject-rewind",
+    "type": "inject",
+    "z": "playpod-v1-example",
+    "name": "−30 Sekunden",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "topic": "rewind",
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "x": 190,
+    "y": 285,
+    "wires": [
+      [
+        "playpod-command-v1"
+      ]
+    ]
+  },
+  {
+    "id": "playpod-inject-volume_up",
+    "type": "inject",
+    "z": "playpod-v1-example",
+    "name": "Lautstärke +5",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "topic": "volume_up",
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "x": 190,
+    "y": 330,
+    "wires": [
+      [
+        "playpod-command-v1"
+      ]
+    ]
+  },
+  {
+    "id": "playpod-inject-volume_down",
+    "type": "inject",
+    "z": "playpod-v1-example",
+    "name": "Lautstärke −5",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "topic": "volume_down",
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "x": 190,
+    "y": 375,
+    "wires": [
+      [
+        "playpod-command-v1"
+      ]
+    ]
+  },
+  {
+    "id": "playpod-inject-mode",
+    "type": "inject",
+    "z": "playpod-v1-example",
+    "name": "Favoritenmodus umschalten",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "topic": "mode",
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "x": 190,
+    "y": 420,
+    "wires": [
+      [
+        "playpod-command-v1"
+      ]
+    ]
+  },
+  {
+    "id": "playpod-inject-extend",
+    "type": "inject",
+    "z": "playpod-v1-example",
+    "name": "Timer +5 Minuten",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "topic": "extend",
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "x": 190,
+    "y": 465,
+    "wires": [
+      [
+        "playpod-command-v1"
+      ]
+    ]
+  },
+  {
+    "id": "playpod-inject-refresh",
+    "type": "inject",
+    "z": "playpod-v1-example",
+    "name": "Feeds aktualisieren",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "topic": "refresh",
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "x": 190,
+    "y": 510,
+    "wires": [
+      [
+        "playpod-command-v1"
+      ]
+    ]
+  },
+  {
+    "id": "playpod-inject-state",
+    "type": "inject",
+    "z": "playpod-v1-example",
+    "name": "Status lesen",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "topic": "state",
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "x": 190,
+    "y": 555,
+    "wires": [
+      [
+        "playpod-command-v1"
+      ]
+    ]
+  },
+  {
+    "id": "playpod-command-v1",
+    "type": "function",
+    "z": "playpod-v1-example",
+    "name": "PlayPod-Adresse setzen",
+    "func": "// Diese eine Adresse anpassen (aus Node-RED erreichbar).\nconst base = \"http://PLAYPOD-HOST:9393\";\nconst commands = {\n  toggle: [\"POST\", \"playback/toggle\", {timer:\"default\",when_queue_empty:\"default\"}],\n  play: [\"POST\", \"playback/play\", {timer:\"default\",when_queue_empty:\"default\"}],\n  pause: [\"POST\", \"playback/pause\", {}],\n  next: [\"POST\", \"playback/next\", {timer:\"default\",when_queue_empty:\"default\"}],\n  forward: [\"POST\", \"seek\", {offset_seconds:30}],\n  rewind: [\"POST\", \"seek\", {offset_seconds:-30}],\n  volume_up: [\"POST\", \"volume/adjust\", {delta:5}],\n  volume_down: [\"POST\", \"volume/adjust\", {delta:-5}],\n  mode: [\"POST\", \"mode/toggle\", {}],\n  extend: [\"POST\", \"timer/extend\", {minutes:5}],\n  refresh: [\"POST\", \"feeds/refresh\", {}],\n  state: [\"GET\", \"state\", null]\n};\nconst command = Object.hasOwn(commands, msg.topic) ? commands[msg.topic] : null;\nif (!command) { node.error(\"Unbekannter PlayPod-Befehl: \" + msg.topic, msg); return null; }\nmsg.method = command[0];\nmsg.url = base.replace(/\\/$/, \"\") + \"/api/v1/\" + command[1];\nmsg.headers = {\"Content-Type\":\"application/json\"};\nif (command[2] === null) delete msg.payload;\nelse msg.payload = command[2];\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 510,
+    "y": 240,
+    "wires": [
+      [
+        "playpod-request-v1"
+      ]
+    ]
+  },
+  {
+    "id": "playpod-request-v1",
+    "type": "http request",
+    "z": "playpod-v1-example",
+    "name": "PlayPod API",
+    "method": "use",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "insecureHTTPParser": false,
+    "authType": "",
+    "senderr": false,
+    "headers": [],
+    "x": 730,
+    "y": 240,
+    "wires": [
+      [
+        "playpod-status-v1"
+      ]
+    ]
+  },
+  {
+    "id": "playpod-status-v1",
+    "type": "switch",
+    "z": "playpod-v1-example",
+    "name": "HTTP erfolgreich?",
+    "property": "statusCode",
+    "propertyType": "msg",
+    "rules": [
+      {
+        "t": "btwn",
+        "v": "200",
+        "vt": "num",
+        "v2": "299",
+        "v2t": "num"
+      },
+      {
+        "t": "else"
+      }
+    ],
+    "checkall": "true",
+    "repair": false,
+    "outputs": 2,
+    "x": 930,
+    "y": 240,
+    "wires": [
+      [
+        "playpod-success-v1"
+      ],
+      [
+        "playpod-error-v1"
+      ]
+    ]
+  },
+  {
+    "id": "playpod-success-v1",
+    "type": "debug",
+    "z": "playpod-v1-example",
+    "name": "PlayPod: Zustand / Auftrag",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "x": 1190,
+    "y": 200,
+    "wires": []
+  },
+  {
+    "id": "playpod-error-v1",
+    "type": "debug",
+    "z": "playpod-v1-example",
+    "name": "PlayPod: HTTP-/Netzwerkfehler",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 1210,
+    "y": 300,
+    "wires": []
+  },
+  {
+    "id": "playpod-catch-v1",
+    "type": "catch",
+    "z": "playpod-v1-example",
+    "name": "Request-/Function-Fehler",
+    "scope": [
+      "playpod-command-v1",
+      "playpod-request-v1"
+    ],
+    "uncaught": false,
+    "x": 930,
+    "y": 360,
+    "wires": [
+      [
+        "playpod-error-v1"
+      ]
+    ]
+  }
+]

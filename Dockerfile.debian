@@ -1,0 +1,30 @@
+# syntax=docker/dockerfile:1
+FROM node:24-alpine AS frontend
+WORKDIR /build
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY frontend/ ./
+RUN npm run build
+
+FROM debian:bookworm-slim AS javascript
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential cmake curl ca-certificates && rm -rf /var/lib/apt/lists/*
+COPY docker/build-quickjs.sh /build-quickjs.sh
+RUN sh /build-quickjs.sh /work /out
+
+FROM python:3.12-slim-bookworm
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 SQLITE_PATH=/data/playpod.sqlite3 STATIC_DIR=/app/frontend/dist YTDLP_JS_RUNTIME=quickjs
+WORKDIR /app
+COPY --from=javascript /out/qjs /usr/local/bin/qjs
+COPY --from=javascript /out/LICENSE.quickjs-ng /usr/local/share/licenses/quickjs-ng/LICENSE
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg ca-certificates tzdata && rm -rf /var/lib/apt/lists/*
+COPY requirements.lock ./
+RUN pip install --no-cache-dir --no-compile -r requirements.lock && \
+    groupadd --gid 10001 playpod && useradd --uid 10001 --gid playpod --no-create-home playpod && \
+    mkdir /data && chown playpod:playpod /data
+COPY --chown=playpod:playpod app ./app
+COPY --from=frontend --chown=playpod:playpod /build/dist ./frontend/dist
+USER playpod
+EXPOSE 9393
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+ CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9393/api/live',timeout=3)"
+CMD ["python", "-m", "app"]

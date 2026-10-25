@@ -1,0 +1,10 @@
+# Optional: docker compose -f compose.yml -f compose.media.yml up -d --build
+services:
+  playpod:
+    volumes:
+      - type: bind
+        source: ${MEDIA_DIRECTORY:?MEDIA_DIRECTORY in .env setzen}
+        target: /media/downloads
+        read_only: true
+        bind:
+          create_host_path: false

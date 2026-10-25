@@ -1,0 +1,36 @@
+services:
+  playpod:
+    image: ${PLAYPOD_IMAGE:-playpod:local}
+    build: .
+    restart: unless-stopped
+    ports:
+      - "9393:9393"
+    environment:
+      MPD_HOST: ${MPD_HOST:-}
+      MPD_PORT: ${MPD_PORT:-6600}
+      MPD_PASSWORD: ${MPD_PASSWORD:-}
+      MQTT_HOST: ${MQTT_HOST:-}
+      MQTT_PORT: ${MQTT_PORT:-1883}
+      MQTT_USER: ${MQTT_USER:-}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-}
+      MQTT_TOPIC: ${MQTT_TOPIC:-podplayer/status}
+      TTS_AUDIO_URL: ${TTS_AUDIO_URL:-}
+      TTS_PLAYBACK_TIMEOUT_SECONDS: ${TTS_PLAYBACK_TIMEOUT_SECONDS:-120}
+      TTS_TIMEOUT_SECONDS: ${TTS_TIMEOUT_SECONDS:-10}
+      RSS_INTERVAL_SECONDS: ${RSS_INTERVAL_SECONDS:-3600}
+      MEDIA_BASE_URL: ${MEDIA_BASE_URL:-}
+      MEDIA_ROOTS: ${MEDIA_ROOTS:-}
+      MEDIA_STABLE_SECONDS: ${MEDIA_STABLE_SECONDS:-5}
+      DOWNLOAD_DIRECTORY: /data/downloads
+      DOWNLOAD_MAX_BYTES: ${DOWNLOAD_MAX_BYTES:-2147483648}
+      YTDLP_JS_RUNTIME: ${YTDLP_JS_RUNTIME:-quickjs}
+      YTDLP_ENABLED: ${YTDLP_ENABLED:-true}
+      YTDLP_TIMEOUT: ${YTDLP_TIMEOUT:-3600}
+      ACCESS_LOG: ${ACCESS_LOG:-false}
+      TZ: Europe/Berlin
+    volumes:
+      - playpod-data:/data
+    stop_grace_period: 45s
+
+volumes:
+  playpod-data:
