@@ -16,7 +16,7 @@ export function renderDialog(this: PlayPodApp) {
   >
     <div class="row spread" style="margin:0 0 15px">
       <h2 id="dialog-title" style="margin:0">
-        ${d?.kind === "downloads" ? t("Downloads verwalten") : d?.kind === "link" ? t("Video-/Audiolink hinzufügen") : d?.kind === "details" ? e?.title : d?.kind === "feed" ? (d.feed ? t("Podcast bearbeiten") : t("Podcast hinzufügen")) : d?.kind === "cleanup" ? t("Nicht erreichbare Episoden") : d?.title}
+        ${d?.kind === "link" ? t("Video-/Audiolink hinzufügen") : d?.kind === "details" ? e?.title : d?.kind === "feed" ? (d.feed ? t("Podcast bearbeiten") : t("Podcast hinzufügen")) : d?.kind === "cleanup" ? t("Nicht erreichbare Episoden") : d?.title}
       </h2>
       <button
         class="icon ghost"
@@ -27,86 +27,81 @@ export function renderDialog(this: PlayPodApp) {
       </button>
     </div>
     ${
-      d?.kind === "downloads"
-        ? downloadManager.call(this)
-        : d?.kind === "link"
-          ? linkForm.call(this)
-          : d?.kind === "details" && e
-            ? html`<p class="eyebrow">${e.podcast} · ${fmt(e.duration)}</p>
-                <div class="shownotes">
-                  ${e.description ? unsafeHTML(e.description) : html`<p>${t("Keine Beschreibung vorhanden.")}</p>`}
-                </div>
-                ${
-                  e.source_type === "web"
-                    ? html`<p class="notice">
-                          ${t("Importierte Audiospur: Zum Abspielen wird eine heruntergeladene Kopie benötigt.")}
-                        </p>
-                        <a
-                          href=${e.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          >${t("Originalseite öffnen ↗")}</a
-                        >`
-                    : nothing
-                }
-                ${e.local_source ? html`<p class="small muted">${t("Lokale Datei:")} ${e.local_source}</p>` : nothing}
-                <div class="row">
-                  ${e.local_source && !e.url ? html`<button class="ghost danger" data-action="remove-local" data-id=${e.id}>${t("Aus Katalog entfernen")}</button>` : nothing}
-                  <button
-                    class="ghost"
-                    ?disabled=${this.busy}
-                    @click=${() =>
-                      void this.perform(async () => {
-                        await this.api(`episodes/${e.id}/completed`, "PUT", {
-                          value: !e.completed,
-                        });
-                        this.close();
-                      })}
-                  >
-                    ${e.completed ? t("Als ungehört markieren") : t("Als gehört markieren")}</button
-                  ><button
-                    class="ghost"
-                    ?disabled=${this.busy}
-                    @click=${() =>
-                      void this.perform(async () => {
-                        this.state = await this.api("episodes/play", "POST", {
-                          episode_id: e.id,
-                          from_start: true,
-                        });
-                        this.close();
-                      })}
-                  >
-                    ${t("Von vorne")}</button
-                  ><button
-                    class="primary"
-                    ?disabled=${this.busy}
-                    @click=${() =>
-                      void this.perform(async () => {
-                        await this.action("play", e.id);
-                        this.close();
-                      })}
-                  >
-                    ${e.last_started && !e.completed ? t("Fortsetzen") : t("Abspielen")}
-                  </button>
-                </div>`
-            : d?.kind === "feed"
-              ? this.feedForm(d.feed)
-              : d?.kind === "confirm"
-                ? html`<p>${d.body}</p>
-                    <div class="row">
-                      <button class="ghost" data-action="close">
-                        ${t("Abbrechen")}</button
-                      ><button
-                        class="danger"
-                        ?disabled=${this.busy}
-                        @click=${() => void this.perform(d.confirm!)}
-                      >
-                        ${t("Bestätigen")}
-                      </button>
-                    </div>`
-                : d?.kind === "cleanup"
-                  ? this.cleanupDialog()
+      d?.kind === "link"
+        ? linkForm.call(this)
+        : d?.kind === "details" && e
+          ? html`<p class="eyebrow">${e.podcast} · ${fmt(e.duration)}</p>
+              <div class="shownotes">
+                ${e.description ? unsafeHTML(e.description) : html`<p>${t("Keine Beschreibung vorhanden.")}</p>`}
+              </div>
+              ${
+                e.source_type === "web"
+                  ? html`<p class="notice">
+                        ${t("Importierte Audiospur: Zum Abspielen wird eine heruntergeladene Kopie benötigt.")}
+                      </p>
+                      <a href=${e.url} target="_blank" rel="noopener noreferrer"
+                        >${t("Originalseite öffnen ↗")}</a
+                      >`
                   : nothing
+              }
+              ${e.local_source ? html`<p class="small muted">${t("Lokale Datei:")} ${e.local_source}</p>` : nothing}
+              <div class="row">
+                ${e.local_source && !e.url ? html`<button class="ghost danger" data-action="remove-local" data-id=${e.id}>${t("Aus Katalog entfernen")}</button>` : nothing}
+                <button
+                  class="ghost"
+                  ?disabled=${this.busy}
+                  @click=${() =>
+                    void this.perform(async () => {
+                      await this.api(`episodes/${e.id}/completed`, "PUT", {
+                        value: !e.completed,
+                      });
+                      this.close();
+                    })}
+                >
+                  ${e.completed ? t("Als ungehört markieren") : t("Als gehört markieren")}</button
+                ><button
+                  class="ghost"
+                  ?disabled=${this.busy}
+                  @click=${() =>
+                    void this.perform(async () => {
+                      this.state = await this.api("episodes/play", "POST", {
+                        episode_id: e.id,
+                        from_start: true,
+                      });
+                      this.close();
+                    })}
+                >
+                  ${t("Von vorne")}</button
+                ><button
+                  class="primary"
+                  ?disabled=${this.busy}
+                  @click=${() =>
+                    void this.perform(async () => {
+                      await this.action("play", e.id);
+                      this.close();
+                    })}
+                >
+                  ${e.last_started && !e.completed ? t("Fortsetzen") : t("Abspielen")}
+                </button>
+              </div>`
+          : d?.kind === "feed"
+            ? this.feedForm(d.feed)
+            : d?.kind === "confirm"
+              ? html`<p>${d.body}</p>
+                  <div class="row">
+                    <button class="ghost" data-action="close">
+                      ${t("Abbrechen")}</button
+                    ><button
+                      class="danger"
+                      ?disabled=${this.busy}
+                      @click=${() => void this.perform(d.confirm!)}
+                    >
+                      ${t("Bestätigen")}
+                    </button>
+                  </div>`
+              : d?.kind === "cleanup"
+                ? this.cleanupDialog()
+                : nothing
     }
   </dialog>`;
 }
@@ -248,6 +243,7 @@ export function cleanupDialog(this: PlayPodApp) {
 
 function linkForm(this: PlayPodApp) {
   return html`<form
+    class="link-form"
     @submit=${(event: SubmitEvent) => {
       event.preventDefault();
       const data = new FormData(event.currentTarget as HTMLFormElement);
@@ -273,38 +269,4 @@ function linkForm(this: PlayPodApp) {
       ${t("Hinzufügen und herunterladen")}
     </button>
   </form>`;
-}
-
-function downloadManager(this: PlayPodApp) {
-  const s = this.downloads.storage;
-  const mb = (n: number) =>
-    (n / 1048576).toLocaleString(localeTag(), { maximumFractionDigits: 1 }) +
-    " MB";
-  return html`<p class="notice">
-      ${s.count} ${t("lokale Kopien ·")} ${mb(s.bytes)} · ${mb(s.free_bytes)}
-      ${t("frei")}
-    </p>
-    <p class="muted small">
-      ${t("Löschen entfernt nur die lokale Kopie. Merker, Episode und Hörfortschritt bleiben erhalten. Dateien aus externen Verzeichnissen werden hier nicht gelöscht.")}
-    </p>
-    ${s.orphan_bytes ? html`<p class="notice">${mb(s.orphan_bytes)} ${t("ohne Episodenzuordnung")} <button class="ghost" data-action="downloads-cleanup" ?disabled=${this.busy}>${t("Verwaiste Dateien löschen")}</button></p>` : nothing}
-    <div class="shownotes">
-      ${
-        this.downloads.items.length
-          ? this.downloads.items.map(
-              (d) =>
-                html`<article class="media-root">
-                  <h3>${d.title}</h3>
-                  <p class="muted small">
-                    ${d.podcast} · ${mb(d.received)} ·
-                    ${d.state === "ready" ? t("Heruntergeladen") : d.state === "deleted" ? t("Kopie gelöscht") : d.state === "running" ? (d.phase === "processing" ? t("Audio wird vorbereitet") : t("Download läuft")) : d.state === "queued" ? t("Wartet") : d.state === "cancel_requested" ? t("Wird abgebrochen") : d.state === "cancelled" ? t("Abgebrochen") : localizeMessage(d.error) || t("Datei fehlt")}
-                  </p>
-                  <div class="row">
-                    ${d.state === "ready" || d.state === "missing" ? html`<button class="ghost danger" data-action="download-delete" data-id=${d.episode_id} ?disabled=${this.busy || d.in_use}>${t("Lokale Kopie löschen")}</button>${d.in_use ? html`<span class="small muted">${t("Noch von MPD verwendet – zuerst Quelle wechseln.")}</span>` : nothing}` : ["queued", "running", "cancel_requested"].includes(d.state) ? html`<button class="ghost" data-action="download-cancel" data-id=${d.episode_id} ?disabled=${this.busy || d.state === "cancel_requested"}>${t("Abbrechen")}</button>` : html`<button class="ghost" data-action="download" data-id=${d.episode_id} ?disabled=${this.busy || !this.downloads.enabled}>${t("Erneut laden")}</button>`}
-                  </div>
-                </article>`,
-            )
-          : html`<p>${t("Noch keine Downloads vorhanden.")}</p>`
-      }
-    </div>`;
 }

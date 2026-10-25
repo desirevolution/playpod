@@ -285,6 +285,7 @@ export class BrowserPlayer {
       completed,
       started,
       playback_id: this.playbackId || undefined,
+      in_use: this.active && this.prepared && !completed && !this.audio.ended,
     };
     this.progressChain = this.progressChain
       .catch(() => {})
@@ -303,6 +304,8 @@ export class BrowserPlayer {
   }
   async refreshCurrent() {
     if (!this.current) return;
+    if (this.active && this.prepared && Date.now() - this.lastReport > 10000)
+      this.report();
     const id = this.current.id;
     try {
       const e = await this.request<Episode>("episodes/" + id);
@@ -658,7 +661,9 @@ export class BrowserPlayer {
     return this.snapshot();
   }
   dispose() {
+    this.active = false;
     this.pause();
+    this.report();
     clearInterval(this.interval);
     for (const [name, fn] of this.listeners)
       this.audio.removeEventListener(name, fn);

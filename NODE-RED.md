@@ -117,3 +117,9 @@ For optional diagnostics: `GET /api/v1/announcements/ID` or `GET /api/v1/announc
 
 Browser progress optionally accepts `playback_id`, a stable identifier for one playback, to deduplicate completion retries. Existing progress clients and MPD/Node-RED playback commands remain compatible.
 
+
+## Download cleanup
+
+`GET /api/v1/feeds/ID/downloads/completed` previews the number and bytes of local copies for completed episodes. `DELETE` on the same URL removes those copies and returns `deleted`, `skipped` and `failed` counts. Episode records, bookmarks and progress remain. MPD's current source and announcement return source are protected; an unavailable MPD prevents deletion. Browser progress may include `in_use: true` with its `playback_id`; an active client refreshes its usage lease, which expires 90 seconds after its last report.
+
+The UI exposes per-episode copy deletion in the action menu, per-podcast finished-download cleanup, and orphan/storage maintenance under Settings. The dedicated download-manager modal has been removed.

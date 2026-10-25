@@ -239,13 +239,25 @@ export class PlayPodApp extends LitElement {
       );
   };
   onKey = (e: KeyboardEvent) => {
+    if (e.key === "Escape" && !this.dialog) {
+      const menus =
+        this.querySelectorAll<HTMLDetailsElement>(".action-menu[open]");
+      if (menus.length) {
+        e.preventDefault();
+        menus.forEach((menu) => {
+          menu.open = false;
+          menu.querySelector<HTMLElement>("summary")?.focus();
+        });
+        return;
+      }
+    }
     const target = e.target instanceof Element ? e.target : null;
     const action = shortcut(
       e,
       !!target?.closest(
         "input,textarea,select,[contenteditable]:not([contenteditable=false]),[role=textbox]",
       ),
-      !!target?.closest("button,a,[role=button]"),
+      !!target?.closest("button,a,summary,[role=button]"),
       !!this.dialog,
     );
     if (action === "player") {
@@ -285,7 +297,10 @@ export class PlayPodApp extends LitElement {
     if (this.target === "browser") this.browser?.pause();
     if (target === "browser") await this.ensureBrowser();
     this.target = target;
-    if (this.browser) this.browser.active = target === "browser";
+    if (this.browser) {
+      this.browser.active = target === "browser";
+      this.browser.report();
+    }
     try {
       localStorage.setItem("playpod.target", target);
     } catch {}
@@ -578,7 +593,13 @@ export class PlayPodApp extends LitElement {
       class="art ${big ? "big" : "mini"} ${color}"
       aria-hidden="true"
     >
-      <strong>${text.split(" ").slice(0, 3).join(" ")}</strong
+      <strong
+        >${text
+          .split(/\s+/)
+          .filter(Boolean)
+          .slice(0, 2)
+          .map((word) => word[0].toLocaleUpperCase())
+          .join("")}</strong
       >${cover ? html`<img src=${cover} alt="" loading="lazy" @error=${(e: Event) => (e.currentTarget as HTMLImageElement).remove()} />` : nothing}
     </div>`;
   }
@@ -733,14 +754,25 @@ export class PlayPodApp extends LitElement {
       });
   }
   onAction = (e: Event) => {
+    if (
+      e.target instanceof HTMLDetailsElement &&
+      e.target.classList.contains("action-menu")
+    )
+      e.target.open = false;
     const b = (e.target as HTMLElement).closest<HTMLButtonElement>(
       "button[data-action]",
     );
+    this.querySelectorAll<HTMLDetailsElement>(".action-menu[open]").forEach(
+      (menu) => {
+        if (!menu.contains(e.target as Node)) menu.open = false;
+      },
+    );
     if (!b || b.disabled) return;
+    b.closest(".action-menu")?.removeAttribute("open");
     const action = b.dataset.action!,
       id = Number(b.dataset.id) || undefined;
-    if (action === "link-add" || action === "downloads") {
-      void this.open({ kind: action === "link-add" ? "link" : "downloads" });
+    if (action === "link-add") {
+      void this.open({ kind: "link" });
       return;
     }
     if (action === "download-delete") {
@@ -776,6 +808,39 @@ export class PlayPodApp extends LitElement {
           this.close();
         },
       );
+      return;
+    }
+    if (action === "feed-delete-heard") {
+      void this.perform(async () => {
+        const preview = await this.api<{ count: number }>(
+          `feeds/${id}/downloads/completed`,
+        );
+        if (!preview.count) {
+          this.notify(t("Keine gehörten Downloads vorhanden."));
+          return;
+        }
+        this.confirm(
+          t("Gehörte Downloads löschen?"),
+          t(
+            "{count} lokale Kopien löschen? Episoden, Merker und Hörfortschritt bleiben erhalten. Verwendete Dateien werden ausgelassen.",
+            { count: preview.count },
+          ),
+          async () => {
+            const result = await this.api<{
+              deleted: number;
+              skipped: number;
+              failed: number;
+            }>(`feeds/${id}/downloads/completed`, "DELETE");
+            this.close();
+            this.notify(
+              t(
+                "{deleted} Kopien gelöscht · {skipped} verwendet · {failed} fehlgeschlagen",
+                result,
+              ),
+            );
+          },
+        );
+      });
       return;
     }
     if (action === "feed-download") {
@@ -835,7 +900,7 @@ export class PlayPodApp extends LitElement {
         this.confirm(
           t("Importliste leeren?"),
           t(
-            "Alle Einträge aus „{title}“ samt Merkern, Hörfortschritt und Warteschlangeneinträgen entfernen? Eine zugehörige Wiedergabe stoppt. Die Sammlung und ihr Favoritenstatus bleiben erhalten. Audiodateien bleiben auf dem Datenträger und können unter „Downloads verwalten“ als verwaiste Dateien aufgeräumt werden.",
+            "Alle Einträge aus „{title}“ samt Merkern, Hörfortschritt und Warteschlangeneinträgen entfernen? Eine zugehörige Wiedergabe stoppt. Die Sammlung und ihr Favoritenstatus bleiben erhalten. Audiodateien bleiben auf dem Datenträger und können unter Einstellungen als verwaiste Dateien aufgeräumt werden.",
             { title: f.title },
           ),
           async () => {
@@ -926,9 +991,9 @@ export class PlayPodApp extends LitElement {
     >
       ${[
         ["player", t("Player"), "player"],
-        ["management", t("Management"), "library"],
+        ["management", t("Bibliothek"), "library"],
         ["activity", t("Aktivität"), "activity"],
-        ["config", t("Config"), "config"],
+        ["config", t("Einstellungen"), "config"],
       ].map(
         ([v, label, i]) =>
           html`<button
@@ -970,7 +1035,7 @@ export class PlayPodApp extends LitElement {
         <header class="top">
           <div>
             <h1 tabindex="-1">
-              ${{ player: t("Player"), management: t("Management"), activity: t("Aktivität"), config: t("Config") }[this.view]}
+              ${{ player: t("Player"), management: t("Bibliothek"), activity: t("Aktivität"), config: t("Einstellungen") }[this.view]}
             </h1>
           </div>
           <div class="playback-target">
@@ -1004,7 +1069,7 @@ export class PlayPodApp extends LitElement {
         </header>
         ${this.connectionError ? html`<div class="error-banner" role="alert">${localizeMessage(this.connectionError)}</div>` : nothing}${state?.error ? html`<div class="error-banner" role="alert">${localizeMessage(state.error)}</div>` : nothing}${this.view === "player" ? this.renderPlayer() : this.view === "management" ? this.renderManagement() : this.view === "activity" ? renderActivity.call(this) : this.renderConfig()}
       </main>
-      ${this.view !== "player" && state ? this.mini() : nothing}${this.nav(true)}${this.message ? html`<div class="toast" role="status">${localizeMessage(this.message)}</div>` : nothing}${this.renderDialog()}
+      ${this.view !== "player" && state?.current ? this.mini() : nothing}${this.nav(true)}${this.message ? html`<div class="toast" role="status">${localizeMessage(this.message)}</div>` : nothing}${this.renderDialog()}
     </div>`;
   }
   renderPlayer() {

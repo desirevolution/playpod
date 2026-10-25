@@ -39,6 +39,7 @@ class Downloads:
         self.directory.mkdir(parents=True, exist_ok=True)
         self.max_bytes, self.get = settings.download_max_bytes, get
         self.lock = threading.RLock()
+        self.browser_leases = {}
         self.stop = threading.Event()
         self.thread = None
         db.execute("UPDATE feeds SET title='YT-Importe' WHERE url='playpod-links://manual' AND title IN ('Einzelne Links','Linkimporte')")
@@ -134,8 +135,24 @@ class Downloads:
                 pass
         return result
 
+    def browser_usage(self, session, episode_id, in_use):
+        with self.lock:
+            now = time.monotonic()
+            self.browser_leases = {key: value for key, value in self.browser_leases.items() if value[1] > now}
+            if session:
+                if in_use:
+                    self.browser_leases[session] = (episode_id, now + 90)
+                else:
+                    self.browser_leases.pop(session, None)
+
+    def browser_in_use(self, episode_id):
+        with self.lock:
+            return any(ep == episode_id and until > time.monotonic() for ep, until in self.browser_leases.values())
+
     def remove_copy(self, episode_id):
         with self.lock:
+            if self.browser_in_use(episode_id):
+                raise PlayerError('Diese lokale Kopie wird in einem Browser verwendet')
             row = self.db.one('SELECT * FROM downloads WHERE episode_id=?', (episode_id,))
             if not row or row['state'] not in ('ready', 'missing'):
                 raise PlayerError('Keine fertige lokale Kopie vorhanden')

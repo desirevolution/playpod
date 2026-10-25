@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Redesign with warm neutral surfaces, restrained accents, horizontal desktop player, compact inactive sleep mode, Library navigation, mobile action sheets and reduced help text.
+- Move download actions to episode/podcast scope and storage maintenance to Settings; protect MPD and recently active browser copies during cleanup.
+
+- Scale desktop player artwork and title with the card, show app-install help only in the mobile layout and stack link-import form fields/actions to prevent overlap.
+
 - Use full width across all views, split desktop playback columns 60:40, place playback status above the target switch and hide inactive timer readouts.
 
 - Fire-and-forget text announcement API with persistent FIFO processing, shared TTS integration and uninterrupted return to MPD after the complete batch.

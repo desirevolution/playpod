@@ -1,5 +1,6 @@
 import {
   t,
+  countText,
   localeTag,
   getLanguagePreference,
   setLanguage,
@@ -13,7 +14,12 @@ import type { Episode, Feed, Job } from "../types";
 import { fmt, date, icon } from "../ui";
 export function renderConfig(this: PlayPodApp) {
   const c = this.config;
-  return html`<section aria-label=${t("Config")}>
+  const storage = this.downloads.storage;
+  const mb = (value: number) =>
+    (value / 1048576).toLocaleString(localeTag(), {
+      maximumFractionDigits: 1,
+    }) + " MB";
+  return html`<section class="settings-view" aria-label=${t("Einstellungen")}>
     <article class="panel language-panel">
       <label for="language">${t("Sprache")}</label>
       <select
@@ -32,58 +38,8 @@ export function renderConfig(this: PlayPodApp) {
         </option>
       </select>
     </article>
-    <div class="config-grid">
-      <aside class="panel">
-        <h2>${t("Verbindungen")}</h2>
-        ${[
-          ...(c?.mpd_configured
-            ? [
-                [
-                  "MPD",
-                  c.mpd === "connected"
-                    ? t("Verbunden")
-                    : t("Nicht erreichbar"),
-                ],
-              ]
-            : [[t("Wiedergabe"), t("Nur Browser")]]),
-          ["SQLite", t("Bereit")],
-          [
-            "MQTT",
-            c?.mqtt === "connected"
-              ? t("Verbunden")
-              : c?.mqtt === "disabled"
-                ? t("Deaktiviert")
-                : t("Nicht verbunden"),
-          ],
-          ...(!c?.mpd_configured
-            ? []
-            : [
-                [
-                  t("Titelansage"),
-                  c?.tts_mode === "audio"
-                    ? t("Vor Episode über MPD")
-                    : c?.tts === "configured"
-                      ? t("Konfiguriert")
-                      : t("Deaktiviert"),
-                ],
-              ]),
-        ].map(
-          ([a, b]) =>
-            html`<div class="service"><span>${a}</span><span>${b}</span></div>`,
-        )}
-        <p class="muted small" style="margin-top:18px">
-          ${t("Feedaktualisierung alle")}
-          ${Math.round((c?.rss_interval || 3600) / 60)} ${t("Minuten.")}<br />
-          ${c?.rss_last_refresh ? html`${t("Letzte Aktualisierung:")} ${new Date((c.rss_last_refresh.finished || c.rss_last_refresh.created) * 1000).toLocaleString(localeTag())} · ${c.rss_last_refresh.state === "running" ? t("läuft") : c.rss_last_refresh.state === "done" ? (c.rss_last_refresh.errors ? c.rss_last_refresh.errors + t(" Feed(s) fehlgeschlagen") : t("abgeschlossen")) : t("abgebrochen/fehlgeschlagen")}` : t("Noch keine Feedaktualisierung ausgeführt.")}<br />${t("Version")}
-          ${c?.version || "…"}
-        </p>
-        <p class="muted small" style="margin-top:18px">
-          ${t("Verbindungen werden über Umgebungsvariablen konfiguriert. „Konfiguriert“ bei TTS ist kein Erreichbarkeitstest.")}
-        </p>
-      </aside>
-    </div>
     <article
-      class="panel future anchored-section"
+      class="settings-section anchored-section"
       id="sleep-config"
       tabindex="-1"
     >
@@ -149,32 +105,42 @@ export function renderConfig(this: PlayPodApp) {
           ${this.savingSleep ? t("Speichert …") : t("Speichern")}
         </button>
       </form>
-      <p class="muted small">
-        ${t("Zufällige Episoden starten von vorne. Angefangene Folgen zählen als nicht vollständig gehört. Ohne passende Folge stoppt die Wiedergabe. Änderungen gelten beim nächsten Aktivieren; laufende Wiedergabe bleibt unverändert.")}
-      </p>
+      <details class="help-details">
+        <summary>${t("Hinweise zum Einschlafmodus")}</summary>
+        <p class="muted small">
+          ${t("Zufällige Episoden starten von vorne. Angefangene Folgen zählen als nicht vollständig gehört. Ohne passende Folge stoppt die Wiedergabe. Änderungen gelten beim nächsten Aktivieren; laufende Wiedergabe bleibt unverändert.")}
+        </p>
+      </details>
     </article>
-    <article class="panel future">
-      <h2>${t("PlayPod als App")}</h2>
-      <p class="muted small">
-        ${t("Über das Browsermenü installieren oder zum Startbildschirm hinzufügen (HTTPS oder localhost). Die App enthält Direkteinstiege zu Player, Einschlafen und Management. Ein Direkteinstieg startet kein Audio.")}
+    <article class="settings-section">
+      <h2>${t("Downloads und Speicher")}</h2>
+      <p>
+        ${countText(storage.count, "{count} lokale Kopie", "{count} lokale Kopien")}
+        · ${mb(storage.bytes)} · ${mb(storage.free_bytes)} ${t("frei")}
       </p>
-      <p class="muted small">
-        ${t("Ohne Verbindung zum Server gibt es keine Audio-Wiedergabe. Updates unterbrechen keine laufende Episode; die App bei Bedarf vollständig schließen und neu öffnen.")}
-      </p>
+      ${this.downloads.error ? html`<p class="notice error-tag">${localizeMessage(this.downloads.error)}</p>` : nothing}
+      ${
+        storage.orphan_bytes
+          ? html`<p>
+                ${mb(storage.orphan_bytes)} ${t("ohne Episodenzuordnung")}
+              </p>
+              <button
+                class="ghost danger"
+                data-action="downloads-cleanup"
+                ?disabled=${this.busy}
+              >
+                ${t("Verwaiste Dateien löschen")}
+              </button>`
+          : html`<p class="muted small">${t("Keine verwaisten Downloads.")}</p>`
+      }
+      <details class="help-details">
+        <summary>${t("Was wird gelöscht?")}</summary>
+        <p>
+          ${t("Nur lokale Downloadkopien werden gelöscht. Episoden, Merker und Hörfortschritt bleiben erhalten. Externe Dateien werden nur gelesen.")}
+        </p>
+      </details>
     </article>
-    <article class="panel future">
-      <h2>${t("Episoden herunterladen")}</h2>
-      <p class="notice">
-        ${!this.downloads.enabled ? t("Zum lokalen Abspielen MEDIA_BASE_URL auf die für MPD erreichbare PlayPod-Adresse setzen.") : this.downloads.online ? t("Downloads bereit") : t("Downloads derzeit nicht verfügbar.")}
-      </p>
-      <p class="muted small">
-        ${t("Im Management kannst du Feedepisoden herunterladen und den Fortschritt verfolgen. Ein Download läuft gleichzeitig. Fertige Dateien werden beim nächsten Start bevorzugt lokal abgespielt; die laufende Wiedergabe bleibt erhalten.")}
-      </p>
-      <p class="muted small">
-        ${t("Downloads liegen im Datenvolume von PlayPod. Externe Verzeichnisse bleiben nur lesbar. Bei nicht verfügbarer lokaler Kopie wird die Originalquelle verwendet.")}
-      </p>
-    </article>
-    <article class="panel future">
+    <article class="settings-section">
       <div class="panel-head">
         <div>
           <h2>${t("Lokale Medien")}</h2>
@@ -209,15 +175,71 @@ export function renderConfig(this: PlayPodApp) {
                 </div>`,
             )
           : html`<p class="notice">
-              ${t("Noch kein Verzeichnis eingerichtet. MEDIA_ROOTS und einen passenden Docker-Mount konfigurieren.")}
+              ${t("Keine lokalen Verzeichnisse eingerichtet.")}
             </p>`
       }
-      <p class="notice">
-        ${!c?.mpd_configured ? t("Lokale Dateien werden direkt in diesem Browser abgespielt.") : c?.media_base_url ? html`${t("Medienadresse für MPD:")} ${c.media_base_url}` : t("Für lokale Wiedergabe über MPD MEDIA_BASE_URL auf die für MPD erreichbare PlayPod-Adresse setzen. Browserwiedergabe funktioniert ohne diese Angabe.")}
-      </p>
-      <p class="muted small">
-        ${t("Dateien bleiben beim Entfernen aus dem Katalog auf dem Datenträger. Fehlende Dateien werden beim Einlesen gekennzeichnet.")}
-      </p>
+      <details class="help-details">
+        <summary>${t("Einrichtung und Dateiverwaltung")}</summary>
+        <p class="notice">
+          ${!c?.mpd_configured ? t("Lokale Dateien werden direkt in diesem Browser abgespielt.") : c?.media_base_url ? html`${t("Medienadresse für MPD:")} ${c.media_base_url}` : t("Für lokale Wiedergabe über MPD MEDIA_BASE_URL auf die für MPD erreichbare PlayPod-Adresse setzen. Browserwiedergabe funktioniert ohne diese Angabe.")}
+        </p>
+        <p class="muted small">
+          ${t("Dateien bleiben beim Entfernen aus dem Katalog auf dem Datenträger. Fehlende Dateien werden beim Einlesen gekennzeichnet.")}
+        </p>
+      </details>
     </article>
+    <details class="settings-section technical-settings">
+      <summary>${t("Technik und Verbindungen")}</summary>
+
+      ${[
+        ...(c?.mpd_configured
+          ? [
+              [
+                "MPD",
+                c.mpd === "connected" ? t("Verbunden") : t("Nicht erreichbar"),
+              ],
+            ]
+          : [[t("Wiedergabe"), t("Nur Browser")]]),
+        ["SQLite", t("Bereit")],
+        [
+          "MQTT",
+          c?.mqtt === "connected"
+            ? t("Verbunden")
+            : c?.mqtt === "disabled"
+              ? t("Deaktiviert")
+              : t("Nicht verbunden"),
+        ],
+        ...(!c?.mpd_configured
+          ? []
+          : [
+              [
+                t("Titelansage"),
+                c?.tts_mode === "audio"
+                  ? t("Vor Episode über MPD")
+                  : c?.tts === "configured"
+                    ? t("Konfiguriert")
+                    : t("Deaktiviert"),
+              ],
+            ]),
+      ].map(
+        ([a, b]) =>
+          html`<div class="service"><span>${a}</span><span>${b}</span></div>`,
+      )}
+      <p class="muted small" style="margin-top:18px">
+        ${t("Feedaktualisierung alle")}
+        ${Math.round((c?.rss_interval || 3600) / 60)} ${t("Minuten.")}<br />
+        ${c?.rss_last_refresh ? html`${t("Letzte Aktualisierung:")} ${new Date((c.rss_last_refresh.finished || c.rss_last_refresh.created) * 1000).toLocaleString(localeTag())} · ${c.rss_last_refresh.state === "running" ? t("läuft") : c.rss_last_refresh.state === "done" ? (c.rss_last_refresh.errors ? c.rss_last_refresh.errors + t(" Feed(s) fehlgeschlagen") : t("abgeschlossen")) : t("abgebrochen/fehlgeschlagen")}` : t("Noch keine Feedaktualisierung ausgeführt.")}<br />${t("Version")}
+        ${c?.version || "…"}
+      </p>
+      <p class="muted small" style="margin-top:18px">
+        ${t("Verbindungen werden über Umgebungsvariablen konfiguriert. „Konfiguriert“ bei TTS ist kein Erreichbarkeitstest.")}
+      </p>
+    </details>
+    <details class="settings-section pwa-panel">
+      <summary>${t("PlayPod als App")}</summary>
+      <p>
+        ${t("Über das Browsermenü installieren oder zum Startbildschirm hinzufügen (HTTPS oder localhost).")}
+      </p>
+    </details>
   </section>`;
 }

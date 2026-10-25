@@ -37,3 +37,18 @@ No Docker engine, GHCR publication or GitHub release was executed in this enviro
 - Removed the content width limit for every view. Desktop player columns use 3fr/2fr (60:40); the existing mobile single-column breakpoint remains.
 - Playback status now belongs to the target group above the browser switch. Timer readouts render only during playback with an enabled timer, including the mini-player; the timer selector retains its Off option.
 - All 45 frontend tests, TypeScript and the production build passed. No backend behavior changed in this follow-up.
+
+## Player content and link form follow-up
+
+- Desktop artwork scales to 72% of the available card content width up to 460px; the title uses the content width with responsive type. Mobile artwork layout is retained.
+- PWA help is hidden in the desktop layout. The link form uses one explicit grid column with spacing between description, URL label/input and submit action; the button fills the mobile form width.
+- 45 frontend tests, TypeScript and production build passed. Download-management restructuring remains a proposal.
+
+## Library and interaction redesign
+
+- Existing full backend run: 269 passed. New cleanup and browser/download regression suite: 24 passed, including 4 new cleanup cases; cleanup contract checks rerun: 4 passed (273 current backend tests covered).
+- Frontend: 46 tests including browser copy-usage release on disposal. TypeScript and production build passed.
+- Browser checks used isolated fixture data: 60:40 desktop columns (603.6/402.4px), horizontal player, compact inactive sleep controls, podcast selection, direct/overflow episode actions, disabled deletion for a copy in use, bulk-delete confirmation, link-dialog input/button gap of 18px, Settings storage and collapsed technical help, German/English switching.
+- Mobile: 320px Library and Settings and 390px Player fit without horizontal overflow. A 320px action sheet stays within x=12..293px; Escape dismisses it. Podcast/filter selection replaces the desktop side list/tabs.
+- Download cleanup deletes completed managed copies only, preserves catalog metadata, skips MPD/browser usage and announcement return sources, and rejects cleanup if MPD usage cannot be checked. Browser usage leases are refreshed by current clients and expire after 90 seconds without updates.
+- The old download modal, unused podcast-card/grid styles and decorative fallback covers were removed. UI route hashes and Node-RED playback behavior remain compatible. No new schema/dependencies/container.

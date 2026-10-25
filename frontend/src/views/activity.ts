@@ -21,9 +21,7 @@ export function renderActivity(this: PlayPodApp) {
           </button>`,
       )}
     </div>
-    <p class="muted small">
-      ${t("Ereignisse der letzten 90 Tage. Zeitpunkte entsprechen deiner lokalen Zeitzone.")}
-    </p>
+    <p class="muted small">${t("Letzte 90 Tage")}</p>
     ${this.activityError ? html`<p class="notice" role="alert">${localizeMessage(this.activityError)}</p>` : nothing}
     ${!this.activityLoaded ? html`<p role="status">${t("Aktivität wird geladen …")}</p>` : nothing}
     ${groupActivity(this.activityItems).map(

@@ -1,6 +1,7 @@
 services:
   playpod:
-    image: ghcr.io/desirevolution/playpod:latest
+    image: ${PLAYPOD_IMAGE:-playpod:local}
+    build: .
     restart: unless-stopped
     ports:
       - "9393:9393"

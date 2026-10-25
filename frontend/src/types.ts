@@ -99,7 +99,7 @@ export type Job = {
   results?: { id: number; status?: string; error?: string; ok?: boolean }[];
 };
 export type DialogState = {
-  kind: "details" | "feed" | "confirm" | "cleanup" | "link" | "downloads";
+  kind: "details" | "feed" | "confirm" | "cleanup" | "link";
   episode?: Episode;
   feed?: Feed;
   title?: string;

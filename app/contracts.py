@@ -221,6 +221,17 @@ class DownloadStatusResult(BaseModel):
     items: list[DownloadResult]
 
 
+class DownloadCleanupPreview(BaseModel):
+    count: int
+    bytes: int
+
+
+class DownloadCleanupResult(BaseModel):
+    deleted: int
+    skipped: int
+    failed: int
+
+
 class ActivityResult(BaseModel):
     id: int
     kind: Literal['episode_added', 'feed_added', 'completed']

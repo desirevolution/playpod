@@ -29,6 +29,16 @@ function rig(t,saved={}){
 }
 const settled=()=>new Promise(r=>setTimeout(r,0));
 
+test('prepared browser audio reports usage while paused and releases it on disposal', async t => {
+  const {p,calls}=rig(t,{seconds:0,when_queue_empty:'stop'});
+  await p.init(); await p.start(1); await p.progressChain;
+  assert.equal(calls.filter(c=>c.path==='browser/progress').at(-1).body.in_use,true);
+  p.pause(); await p.progressChain;
+  assert.equal(calls.filter(c=>c.path==='browser/progress').at(-1).body.in_use,true);
+  p.dispose(); await p.progressChain;
+  assert.equal(calls.filter(c=>c.path==='browser/progress').at(-1).body.in_use,false);
+});
+
 test('activity playback identifiers survive pause and reload and change on replay', async t => {
   const {p,audio,calls,data}=rig(t, {seconds:0,when_queue_empty:'stop'});
   await p.init();

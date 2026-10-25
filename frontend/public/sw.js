@@ -1,6 +1,6 @@
 // Deliberately cache only the static offline notice and icons, never audio,
 // API responses, the authenticated application HTML or login redirects.
-const CACHE = "playpod-offline-v3";
+const CACHE = "playpod-offline-v4";
 self.addEventListener("install", (event) => {
   event.waitUntil(
     (async () => {

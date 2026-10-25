@@ -6,8 +6,8 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#111412",
-  "theme_color": "#111412",
+  "background_color": "#181817",
+  "theme_color": "#181817",
   "icons": [
     {
       "src": "/icons/icon-192.png",
@@ -44,7 +44,7 @@
       ]
     },
     {
-      "name": "Management",
+      "name": "Library",
       "url": "/#management",
       "icons": [
         {

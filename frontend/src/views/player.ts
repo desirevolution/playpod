@@ -15,78 +15,73 @@ export function renderPlayer(this: PlayPodApp) {
   }
   return html`<section aria-label=${t("Player")}>
     <div class="player-grid">
-      <article class="panel">
+      <article class="panel player-main">
         ${s?.announcement_kind === "custom" ? html`<p class="notice" role="status">${t("Ansage")}: ${s.announcement_text}</p>` : nothing}
         <div class="player-hero">
           ${this.cover(e || null, true)}
-          <div class="playing-meta">
-            <p class="eyebrow">
-              ${e?.podcast || t("Keine Episode ausgewählt")}
-            </p>
-            <h2>
-              ${e?.title || (s?.announcement_kind === "mode" || s?.announcement_kind === "custom" ? s.announcement_text : t("Keine aktive Episode"))}
-            </h2>
-            ${e ? html`<button class="description" data-action="details" data-id=${e.id}>${t("Beschreibung ansehen ↗")}</button>` : html`<p class="muted">${t("Wähle eine Episode im Management oder starte die Wiedergabe.")}</p>`}
-            <div class="source-row">
-              <span class="badge"
-                >${s?.phase === "announcement" ? (s.state === "pause" ? this.announcementLabel + t(" pausiert") : this.announcementLabel) : s?.state === "play" ? t("Wiedergabe") : s?.state === "pause" ? t("Pausiert") : t("Gestoppt")}</span
-              ><span class="known-source"
-                >${s?.source_kind === "local" ? t("Lokale Datei") : t("Originalquelle")}</span
+          <div class="player-body">
+            <div class="playing-meta">
+              <p class="eyebrow">
+                ${e?.podcast || t("Keine Episode ausgewählt")}
+              </p>
+              <h2>
+                ${e?.title || (s?.announcement_kind === "mode" || s?.announcement_kind === "custom" ? s.announcement_text : t("Keine aktive Episode"))}
+              </h2>
+              ${e ? html`<button class="description" data-action="details" data-id=${e.id}>${t("Beschreibung ansehen ↗")}</button>` : html`<p class="muted">${t("Wähle eine Episode in der Bibliothek.")}</p>`}
+            </div>
+            <div class="progress">
+              <input
+                type="range"
+                min="0"
+                max=${s?.duration || e?.duration || 1}
+                .value=${String(this.seekDraft ?? this.displayElapsed)}
+                aria-label=${t("Wiedergabeposition")}
+                aria-valuetext=${t("{elapsed} von {duration}", { elapsed: fmt(this.displayElapsed), duration: fmt(s?.duration || 0) })}
+                ?disabled=${!e || this.busy || s?.phase === "announcement"}
+                @input=${(ev: Event) => (this.seekDraft = Number((ev.target as HTMLInputElement).value))}
+                @change=${(ev: Event) => {
+                  const seconds = Number((ev.target as HTMLInputElement).value);
+                  void this.perform(async () => {
+                    try {
+                      this.state = await this.api("seek", "POST", {
+                        position_seconds: seconds,
+                      });
+                    } finally {
+                      if (this.seekDraft === seconds) this.seekDraft = null;
+                    }
+                  }, true);
+                }}
+              />
+              <div class="time">
+                <span>${fmt(this.seekDraft ?? this.displayElapsed)}</span
+                ><span>${fmt(s?.duration || e?.duration || 0)}</span>
+              </div>
+            </div>
+            <div class="controls">
+              ${this.button("undo", t("Letztes Überspringen rückgängig"), "back", undefined, !s?.undo_available)}<button
+                class="skip"
+                data-action="rewind"
+                aria-label=${t("30 Sekunden zurück")}
+                ?disabled=${!e || this.busy || s?.phase === "announcement"}
               >
+                ${icon("back")}<span>30</span></button
+              ><button
+                class="primary play"
+                data-action="toggle"
+                aria-label=${s?.state === "play" ? t("Pausieren") : t("Abspielen")}
+                ?disabled=${this.busy || s?.state === "error" || !this.canPlay}
+              >
+                ${icon(s?.state === "play" ? "pause" : "play")}</button
+              ><button
+                class="skip"
+                data-action="forward"
+                aria-label=${t("30 Sekunden vor")}
+                ?disabled=${!e || this.busy || s?.phase === "announcement"}
+              >
+                ${icon("forward")}<span>30</span></button
+              >${this.button("next", this.nextLabel, "next", undefined, s?.state === "error" || !this.canNext)}
             </div>
           </div>
-        </div>
-        <div class="progress">
-          <input
-            type="range"
-            min="0"
-            max=${s?.duration || e?.duration || 1}
-            .value=${String(this.seekDraft ?? this.displayElapsed)}
-            aria-label=${t("Wiedergabeposition")}
-            aria-valuetext=${t("{elapsed} von {duration}", { elapsed: fmt(this.displayElapsed), duration: fmt(s?.duration || 0) })}
-            ?disabled=${!e || this.busy || s?.phase === "announcement"}
-            @input=${(ev: Event) => (this.seekDraft = Number((ev.target as HTMLInputElement).value))}
-            @change=${(ev: Event) => {
-              const seconds = Number((ev.target as HTMLInputElement).value);
-              void this.perform(async () => {
-                try {
-                  this.state = await this.api("seek", "POST", {
-                    position_seconds: seconds,
-                  });
-                } finally {
-                  if (this.seekDraft === seconds) this.seekDraft = null;
-                }
-              }, true);
-            }}
-          />
-          <div class="time">
-            <span>${fmt(this.seekDraft ?? this.displayElapsed)}</span
-            ><span>${fmt(s?.duration || e?.duration || 0)}</span>
-          </div>
-        </div>
-        <div class="controls">
-          ${this.button("undo", t("Letztes Überspringen rückgängig"), "back", undefined, !s?.undo_available)}<button
-            class="skip"
-            data-action="rewind"
-            aria-label=${t("30 Sekunden zurück")}
-            ?disabled=${!e || this.busy || s?.phase === "announcement"}
-          >
-            ${icon("back")}<span>30</span></button
-          ><button
-            class="primary play"
-            data-action="toggle"
-            aria-label=${s?.state === "play" ? t("Pausieren") : t("Abspielen")}
-            ?disabled=${this.busy || s?.state === "error" || !this.canPlay}
-          >
-            ${icon(s?.state === "play" ? "pause" : "play")}</button
-          ><button
-            class="skip"
-            data-action="forward"
-            aria-label=${t("30 Sekunden vor")}
-            ?disabled=${!e || this.busy || s?.phase === "announcement"}
-          >
-            ${icon("forward")}<span>30</span></button
-          >${this.button("next", this.nextLabel, "next", undefined, s?.state === "error" || !this.canNext)}
         </div>
         <div class="mode-row">
           <button
@@ -166,24 +161,24 @@ export function renderPlayer(this: PlayPodApp) {
                   </div>`
                 : nothing
             }
-            <p class="muted small">
-              ${t("Pause hält den Timer an. „Nächste“ startet die gewählte Laufzeit neu.")}
-            </p>
+            <details class="help-details">
+              <summary>${t("Timer-Hinweise")}</summary>
+              <p class="muted small">
+                ${t("Pause hält den Timer an. „Nächste“ startet die gewählte Laufzeit neu.")}
+              </p>
+            </details>
           </div>
         </div>
       </article>
       <div class="player-side">
         <article
-          class="panel sleep-panel ${s?.sleep_mode ? "active" : ""}"
+          class="panel sleep-panel ${s?.sleep_mode ? "active" : "is-idle"}"
           aria-label=${t("Einschlafmodus")}
         >
           <div class="row spread">
             <h2>${icon("moon")} ${t("Einschlafen")}</h2>
-            <span class="tag"
-              >${this.target === "browser" ? t("Dieser Browser") : "MPD"}</span
-            >
           </div>
-          <p class="muted small">
+          <p class="muted small sleep-policy">
             ${t("Queue zuerst, danach")}
             ${(s?.sleep_mode ? s.when_queue_empty : this.config?.sleep_defaults.when_queue_empty) === "random" ? t("zufällig aus allen Episoden") : t("zufällig aus nicht gehörten Episoden")}.
           </p>
@@ -229,18 +224,21 @@ export function renderPlayer(this: PlayPodApp) {
             </button>
           </div>
           <div class="list">
-            ${s?.queue.length ? s.queue.map((ep, i) => this.queueItem(ep, i)) : html`<div class="empty">${t("Noch nichts vorgemerkt.")}<br />${t("Hänge im Management Episoden an.")}</div>`}
+            ${s?.queue.length ? s.queue.map((ep, i) => this.queueItem(ep, i)) : html`<div class="empty">${t("Warteschlange leer.")}</div>`}
           </div>
-          <p class="queue-foot">
-            ${s?.when_queue_empty === "stop" ? t("Nach der Warteschlange stoppt die Wiedergabe.") : s?.when_queue_empty === "random_unheard" ? t("Danach zufällig aus nicht gehörten Episoden wählen und von vorne starten.") : t("Danach zufällig aus allen Episoden wählen und von vorne starten.")}
-            ${s?.timer.enabled ? t(" Ein aktiver Timer läuft bei automatischen Folgenwechseln weiter.") : ""}
-          </p>
+          <details class="help-details">
+            <summary>${t("Wiedergaberegeln")}</summary>
+            <p class="queue-foot">
+              ${s?.when_queue_empty === "stop" ? t("Nach der Warteschlange stoppt die Wiedergabe.") : s?.when_queue_empty === "random_unheard" ? t("Danach zufällig aus nicht gehörten Episoden wählen und von vorne starten.") : t("Danach zufällig aus allen Episoden wählen und von vorne starten.")}
+              ${s?.timer.enabled ? t(" Ein aktiver Timer läuft bei automatischen Folgenwechseln weiter.") : ""}
+            </p>
+          </details>
           <button
             class="ghost"
             style="width:100%;margin-top:16px"
             @click=${() => this.navigate("management")}
           >
-            ${icon("plus")}${t("Episoden entdecken")}
+            ${icon("plus")}${t("Episoden auswählen")}
           </button>
         </aside>
       </div>

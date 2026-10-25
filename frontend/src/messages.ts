@@ -1,5 +1,53 @@
 // German source messages are lookup keys; keep placeholders identical in all languages.
 export const english: Record<string, string> = {
+  Import: "Import",
+  Podcast: "Podcast",
+  Filter: "Filter",
+  "Keine lokalen Verzeichnisse eingerichtet.": "No local folders configured.",
+  "Einrichtung und Dateiverwaltung": "Setup and file management",
+  "Keine gehörten Downloads vorhanden.": "No finished downloads to remove.",
+  "Gehörte Downloads löschen?": "Delete finished downloads?",
+  "{count} lokale Kopien löschen? Episoden, Merker und Hörfortschritt bleiben erhalten. Verwendete Dateien werden ausgelassen.":
+    "Delete {count} local copies? Episodes, bookmarks and listening progress are kept. Files in use are skipped.",
+  "{deleted} Kopien gelöscht · {skipped} verwendet · {failed} fehlgeschlagen":
+    "{deleted} copies deleted · {skipped} in use · {failed} failed",
+  "Alle Einträge aus „{title}“ samt Merkern, Hörfortschritt und Warteschlangeneinträgen entfernen? Eine zugehörige Wiedergabe stoppt. Die Sammlung und ihr Favoritenstatus bleiben erhalten. Audiodateien bleiben auf dem Datenträger und können unter Einstellungen als verwaiste Dateien aufgeräumt werden.":
+    "Remove all entries from “{title}”, including bookmarks, listening progress and queue entries? Associated playback stops. The collection and its favorite setting are kept. Audio files stay on disk and can be removed as orphaned files in Settings.",
+  Bibliothek: "Library",
+  Einstellungen: "Settings",
+  "Hinweise zum Einschlafmodus": "About sleep mode",
+  "Downloads und Speicher": "Downloads and storage",
+  "Keine verwaisten Downloads.": "No orphaned downloads.",
+  "Was wird gelöscht?": "What gets deleted?",
+  "Nur lokale Downloadkopien werden gelöscht. Episoden, Merker und Hörfortschritt bleiben erhalten. Externe Dateien werden nur gelesen.":
+    "Only downloaded copies are deleted. Episodes, bookmarks and listening progress are kept. External files are read-only.",
+  "Technik und Verbindungen": "Technical details and connections",
+  "Über das Browsermenü installieren oder zum Startbildschirm hinzufügen (HTTPS oder localhost).":
+    "Install using the browser menu or add to your home screen (HTTPS or localhost).",
+  "Link importieren": "Import link",
+  Podcasts: "Podcasts",
+  "Alle Episoden": "All episodes",
+  Fehler: "Error",
+  "Podcast auswählen": "Select podcast",
+  "Quellen prüfen": "Check sources",
+  "Episoden filtern": "Filter episodes",
+  "Weitere Aktionen": "More actions",
+  "Beschreibung ansehen": "View description",
+  "Gehörte Downloads löschen": "Delete finished downloads",
+  "Podcast-Aktionen": "Podcast actions",
+  Aktualisieren: "Refresh",
+  "Wird gerade verwendet": "Currently in use",
+  "Download abbrechen": "Cancel download",
+  "Timer-Hinweise": "About the timer",
+  "Warteschlange leer.": "Queue is empty.",
+  Wiedergaberegeln: "Playback rules",
+  "Episoden auswählen": "Choose episodes",
+  "Wähle eine Episode in der Bibliothek.": "Choose an episode in the library.",
+  "Letzte 90 Tage": "Last 90 days",
+  "Diese lokale Kopie wird in einem Browser verwendet":
+    "This local copy is in use in a browser",
+  "{count} lokale Kopie": "{count} local copy",
+  "{count} lokale Kopien": "{count} local copies",
   Ansage: "Announcement",
   "MPD konnte die Episode nach der Ansage nicht fortsetzen":
     "MPD could not resume the episode after the announcement",

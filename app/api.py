@@ -17,7 +17,8 @@ from .contracts import (LinkInput, FeedDownloadInput, FeedInput, ValueBool, Mode
     EpisodeInput, PlayEpisodeInput, OrderInput, DeleteInput, PlayerResult, QueueAddedResult,
     JobAccepted, ErrorResult, FeedResult, EpisodeResult, EpisodeListResult,
     JobResult, DownloadResult, DownloadAccepted, DownloadStatusResult,
-    ActivityPageResult, ActivityStatusResult, EpisodeLocationResult, AnnouncementInput, AnnouncementResult)
+    ActivityPageResult, ActivityStatusResult, EpisodeLocationResult, AnnouncementInput, AnnouncementResult,
+    DownloadCleanupPreview, DownloadCleanupResult)
 
 from . import __version__
 from .config import Settings
@@ -332,7 +333,7 @@ def create_app(settings=None, *, mpd=None, notifications=None, background=True):
     def download_status():
         result = downloads.status()
         for item in result['items']:
-            item['in_use'] = player.saved['episode_id'] == item['episode_id'] and player.saved.get('source_kind') == 'local' and bool(player.last_song)
+            item['in_use'] = downloads.browser_in_use(item['episode_id']) or (player.saved['episode_id'] == item['episode_id'] and player.saved.get('source_kind') == 'local' and bool(player.last_song))
         return result
 
     def accepted_download(task):
@@ -371,6 +372,42 @@ def create_app(settings=None, *, mpd=None, notifications=None, background=True):
                     tasks.append({'id': task['id'], 'status_url': '/api/v1/downloads/' + task['id']})
                     added += 1
         return {'added': added, 'skipped': len(ids) - added, 'tasks': tasks}
+
+    def protected_downloads():
+        try:
+            _, song = mpd.snapshot()
+        except Exception as exc:
+            raise MPDUnavailable('Dateinutzung kann nicht geprüft werden: MPD ist nicht erreichbar') from exc
+        sources = [song.get('file', '')]
+        intro = player.saved.get('intro', {})
+        if intro.get('kind') in ('mode', 'custom'):
+            sources.append(intro.get('resume', {}).get('song', {}).get('file', ''))
+        return {id_ for source in sources if (id_ := downloads.match_url(source))}
+
+    @app.get('/api/v1/feeds/{feed_id}/downloads/completed', response_model=DownloadCleanupPreview)
+    def completed_download_preview(feed_id: int):
+        if not db.one('SELECT id FROM feeds WHERE id=?', (feed_id,)):
+            raise HTTPException(404, 'Podcast nicht gefunden')
+        rows = db.rows("SELECT e.id,d.received FROM episodes e JOIN downloads d ON d.episode_id=e.id WHERE e.feed_id=? AND e.completed=1 AND d.state IN ('ready','missing')", (feed_id,))
+        return {'count': len(rows), 'bytes': sum(row['received'] for row in rows)}
+
+    @app.delete('/api/v1/feeds/{feed_id}/downloads/completed', response_model=DownloadCleanupResult)
+    def delete_completed_downloads(feed_id: int):
+        completed_download_preview(feed_id)
+        with player.lock, downloads.lock:
+            protected = protected_downloads()
+            rows = db.rows("SELECT e.id FROM episodes e JOIN downloads d ON d.episode_id=e.id WHERE e.feed_id=? AND e.completed=1 AND d.state IN ('ready','missing')", (feed_id,))
+            deleted = skipped = failed = 0
+            for row in rows:
+                if row['id'] in protected or downloads.browser_in_use(row['id']):
+                    skipped += 1
+                    continue
+                try:
+                    downloads.remove_copy(row['id'])
+                    deleted += 1
+                except (OSError, PlayerError):
+                    failed += 1
+            return {'deleted': deleted, 'skipped': skipped, 'failed': failed}
 
     @app.delete("/api/v1/episodes/{episode_id}/download/file")
     def delete_download_file(episode_id: int):

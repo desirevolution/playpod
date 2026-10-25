@@ -32,6 +32,8 @@ export const icon = (name: string) => {
     star: "m12 3 3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1Z",
     speaker: "M4 9h4l5-4v14l-5-4H4Zm13-1a6 6 0 0 1 0 8",
     moon: "M20 14a8 8 0 0 1-10-10 8 8 0 1 0 10 10Z",
+    more: "M5 12h.01M12 12h.01M19 12h.01",
+    refresh: "M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12 0m0 10a7 7 0 0 1-12 0",
     logo: "M5 8v8m5-12v16m5-13v10m5-7v4",
   };
   return html`<svg viewBox="0 0 24 24" aria-hidden="true">

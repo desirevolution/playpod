@@ -6,6 +6,8 @@ Self-hosted podcast player with a web interface, optional MPD playback and a sep
 
 ## Features
 
+- Compact Library: podcast navigation, episode action menus and visible download progress. Remove local copies per episode or all finished downloads of a podcast; storage/orphan cleanup lives in Settings.
+
 - RSS subscriptions, episode search, bookmarks, playback progress and editable queues.
 - Activity timeline for new episodes and finished listening (MPD/browser), with exact episode links and a per-browser unseen counter. Events are kept for 90 days; initial feed imports are summarized.
 - Normal playback stops when the queue is empty. Optional sleep mode uses a configurable timer and random continuation: all episodes or only episodes not fully played.
@@ -24,7 +26,7 @@ Copy `.env.example` to `.env`, then run:
 docker compose up -d --build
 ```
 
-Open `http://HOST:9393`. Leave `MPD_HOST` empty for browser-only playback. Set it to an MPD host to enable central playback. Add subscriptions in Management. Authentication can be handled by your reverse proxy.
+Open `http://HOST:9393`. Leave `MPD_HOST` empty for browser-only playback. Set it to an MPD host to enable central playback. Add subscriptions in Library. Authentication can be handled by your reverse proxy.
 
 **Alpine is the default.** The runtime contains Python 3.12, FFmpeg, yt-dlp/EJS and QuickJS-NG. Node is only used in the frontend build stage. To build the Debian alternative:
 
@@ -91,7 +93,7 @@ services:
       - /srv/imports:/media/imports:ro
 ```
 
-Scan them from Management or Settings. Removing a local library entry does not delete its file. `compose.media.yml` provides a single-folder example using `MEDIA_DIRECTORY`. Its mount target must also be included in `MEDIA_ROOTS`.
+Scan them from Settings. Removing a local library entry does not delete its file. `compose.media.yml` provides a single-folder example using `MEDIA_DIRECTORY`. Its mount target must also be included in `MEDIA_ROOTS`.
 
 Downloads run inside the same container. yt-dlp imports single video/audio links; playlists, channels and active live streams are not supported. Deleting a downloaded copy preserves the episode, bookmarks and progress. Orphan cleanup affects only managed download files. Files still referenced by MPD are protected. Third-party site availability depends on yt-dlp and the source site.
 

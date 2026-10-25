@@ -19,6 +19,7 @@ class BrowserProgress(Input):
     started: bool = False
     completed: bool = False
     playback_id: str | None = Field(default=None, min_length=1, max_length=100)
+    in_use: bool = False
 
 
 def add_browser_routes(app, db, player, media, downloads):
@@ -53,6 +54,7 @@ def add_browser_routes(app, db, player, media, downloads):
     @app.put('/api/v1/browser/progress')
     def progress(data: BrowserProgress):
         player.episode(data.episode_id)
+        downloads.browser_usage(data.playback_id, data.episode_id, data.in_use and not data.completed)
         # Shared listening metadata; no MPD playback/queue/timer mutation.
         with db.connect() as conn:
             previous = conn.execute('SELECT completed FROM episodes WHERE id=?', (data.episode_id,)).fetchone()
