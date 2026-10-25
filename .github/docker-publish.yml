@@ -1,0 +1,172 @@
+name: Test and publish Docker image
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install test tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg cmake build-essential curl
+          python -m pip install -r requirements-dev.txt
+          npm --prefix frontend ci --no-audit --no-fund
+      - name: Build QuickJS-NG
+        run: |
+          sh docker/build-quickjs.sh "$RUNNER_TEMP/qjs-build" "$RUNNER_TEMP/qjs-bin"
+          echo "$RUNNER_TEMP/qjs-bin" >> "$GITHUB_PATH"
+      - name: Verify source versions
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          python scripts/release.py
+          if [ "$GITHUB_EVENT_NAME" = release ]; then
+            python scripts/release.py --release-tag "$RELEASE_TAG"
+          fi
+      - name: Test and build frontend
+        run: |
+          npm --prefix frontend test
+          npm --prefix frontend run build
+      - name: Test backend
+        run: python -m pytest -q
+
+  build:
+    needs: test
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v4
+      - name: Image name
+        id: image
+        env:
+          REPOSITORY: ${{ github.repository }}
+        run: echo "name=ghcr.io/${REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - name: Build and load native image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/${{ matrix.arch }}
+          load: true
+          tags: playpod:test
+          cache-from: type=gha,scope=alpine-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=alpine-${{ matrix.arch }}
+      - name: Offline runtime check
+        run: |
+          docker run --rm -i --network none --read-only \
+            --tmpfs /tmp:rw,nosuid,nodev,size=256m,mode=1777 \
+            --entrypoint python playpod:test - < scripts/smoke_image.py
+          docker image inspect --format '{{.Architecture}} {{.Size}} bytes' playpod:test
+      - name: Log in to GHCR
+        if: github.event_name == 'release' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Push tested image by digest
+        if: github.event_name == 'release' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+        id: push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/${{ matrix.arch }}
+          outputs: type=image,name=${{ steps.image.outputs.name }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=alpine-${{ matrix.arch }}
+          labels: |
+            org.opencontainers.image.title=PlayPod
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+      - name: Export digest
+        if: steps.push.outcome == 'success'
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/digests"
+          touch "$RUNNER_TEMP/digests/${DIGEST#sha256:}"
+      - uses: actions/upload-artifact@v5
+        if: steps.push.outcome == 'success'
+        with:
+          name: digests-alpine-${{ matrix.arch }}
+          path: ${{ runner.temp }}/digests/*
+          retention-days: 1
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    if: github.event_name == 'release' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v6
+        with:
+          pattern: digests-alpine-*
+          path: ${{ runner.temp }}/digests
+          merge-multiple: true
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish multi-platform tags
+        env:
+          REPOSITORY: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          PRERELEASE: ${{ github.event.release.prerelease }}
+        run: |
+          image="ghcr.io/${REPOSITORY,,}"
+          event=main
+          flags=()
+          if [ "$GITHUB_EVENT_NAME" = release ]; then
+            event=release
+            flags+=(--release-tag "$RELEASE_TAG")
+            if [ "$PRERELEASE" = true ]; then flags+=(--prerelease); fi
+          fi
+          python3 scripts/release.py --image "$image" --variant alpine --event "$event" "${flags[@]}" > "$RUNNER_TEMP/tags.txt"
+          mapfile -t tags < "$RUNNER_TEMP/tags.txt"
+          args=()
+          for tag in "${tags[@]}"; do args+=(-t "$tag"); done
+          sources=()
+          for file in "$RUNNER_TEMP"/digests/*; do sources+=("$image@sha256:$(basename "$file")"); done
+          test "${#sources[@]}" -eq 2
+          docker buildx imagetools create "${args[@]}" "${sources[@]}"
+          docker buildx imagetools inspect "${tags[0]}"
