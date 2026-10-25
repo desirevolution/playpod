@@ -14,6 +14,8 @@ import type {
   Config,
   Job,
   DialogState,
+  ActivityEvent,
+  ActivityPage,
 } from "./types";
 import { icon } from "./ui";
 import { BrowserPlayer } from "./browser-player";
@@ -21,6 +23,8 @@ import { DisplayClock } from "./display-clock";
 import { shortcut } from "./keyboard";
 import { renderPlayer, queueItem, mini } from "./views/player";
 import { renderManagement } from "./views/management";
+import { renderActivity } from "./views/activity";
+import { managementTarget } from "./activity";
 import { renderConfig } from "./views/config";
 import { renderDialog, feedForm, cleanupDialog } from "./views/dialogs";
 import { LitElement, html, nothing, type PropertyValues } from "lit";
@@ -51,6 +55,14 @@ export class PlayPodApp extends LitElement {
     seekDraft: { state: true },
     volumeDraft: { state: true },
     offset: { state: true },
+    activityItems: { state: true },
+    activityFilter: { state: true },
+    activityCursor: { state: true },
+    activityLoaded: { state: true },
+    activityLoading: { state: true },
+    activityError: { state: true },
+    highlightedEpisode: { state: true },
+    activityUnseen: { state: true },
   };
   state: PlayerState | null = null;
   target: "mpd" | "browser" | null = null;
@@ -82,6 +94,18 @@ export class PlayPodApp extends LitElement {
   seekDraft: number | null = null;
   volumeDraft: number | null = null;
   offset = 0;
+  activityItems: ActivityEvent[] = [];
+  activityFilter = "all";
+  activityCursor: number | null = null;
+  activityLoaded = false;
+  activityLoading = false;
+  activityError = "";
+  activitySequence = 0;
+  highlightedEpisode: number | null = null;
+  routeSequence = 0;
+  activityUnseen = 0;
+  activityLatest = 0;
+  activitySeen = 0;
   displayClock = new DisplayClock();
   displayInterval?: number;
   commandStates = new WeakSet<object>();
@@ -109,21 +133,26 @@ export class PlayPodApp extends LitElement {
   get announcementLabel() {
     return this.state?.announcement_kind === "mode"
       ? t("Modusansage")
-      : t("Titelansage");
+      : this.state?.announcement_kind === "custom"
+        ? t("Ansage")
+        : t("Titelansage");
   }
   get nextLabel() {
     return this.state?.announcement_kind === "mode"
       ? t("Modusansage beenden und nächste Episode starten")
-      : this.state?.phase === "announcement"
-        ? t("Ansage überspringen und Episode starten")
-        : this.state?.when_queue_empty === "stop"
-          ? t("Nächste Episode aus der Warteschlange")
-          : t("Nächste Episode: Warteschlange zuerst, sonst zufällig");
+      : this.state?.announcement_kind === "custom"
+        ? t("Ansage beenden und nächste Episode starten")
+        : this.state?.phase === "announcement"
+          ? t("Ansage überspringen und Episode starten")
+          : this.state?.when_queue_empty === "stop"
+            ? t("Nächste Episode aus der Warteschlange")
+            : t("Nächste Episode: Warteschlange zuerst, sonst zufällig");
   }
   get canPlay() {
     return (
       !!this.state &&
-      (!!this.state.current ||
+      (this.state.phase === "announcement" ||
+        !!this.state.current ||
         this.state.queue.length > 0 ||
         this.state.when_queue_empty !== "stop")
     );
@@ -149,10 +178,12 @@ export class PlayPodApp extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     applyLanguage();
+    this.readActivitySeen();
     window.addEventListener("playpod-language", this.onLanguage);
     window.addEventListener("languagechange", this.onSystemLanguage);
     registerPwa();
     this.view = this.route();
+    void this.openManagementTarget();
     window.addEventListener("hashchange", this.onRoute);
     window.addEventListener("keydown", this.onKey);
     window.addEventListener("pagehide", this.onHide);
@@ -186,7 +217,7 @@ export class PlayPodApp extends LitElement {
     if (getLanguagePreference() === "auto") setLanguage("auto");
   };
   route() {
-    return ["management", "config"].includes(
+    return ["management", "activity", "config"].includes(
       location.hash.slice(1).split("/")[0],
     )
       ? location.hash.slice(1).split("/")[0]
@@ -195,7 +226,10 @@ export class PlayPodApp extends LitElement {
   onRoute = () => {
     this.view = this.route();
     this.offset = 0;
-    void this.loadManagement();
+    this.highlightedEpisode = null;
+    void this.openManagementTarget();
+    if (!managementTarget(location.hash)) void this.loadManagement();
+    if (this.view === "activity") void this.loadActivity();
     window.scrollTo({ top: 0 });
     if (location.hash === "#config/sleep")
       void this.focusSection("sleep-config");
@@ -336,6 +370,8 @@ export class PlayPodApp extends LitElement {
       this.downloads = downloads;
       this.connectionError = "";
       if (this.view === "management") await this.loadManagement();
+      await this.loadActivityStatus();
+      if (this.view === "activity") await this.loadActivity();
       if (this.dialog?.kind === "cleanup" && this.job)
         this.job = await this.api<Job>("jobs/" + this.job.id);
     } catch {
@@ -370,6 +406,117 @@ export class PlayPodApp extends LitElement {
       }
     } catch (e) {
       this.notify((e as Error).message);
+    }
+  }
+  setActivityFilter(value: string) {
+    this.activitySequence++;
+    this.activityFilter = value;
+    this.activityItems = [];
+    this.activityCursor = null;
+    this.activityLoaded = false;
+    this.activityLoading = false;
+    void this.loadActivity();
+  }
+  readActivitySeen() {
+    try {
+      const saved = Number(localStorage.getItem("playpod.activity.seen"));
+      if (Number.isSafeInteger(saved) && saved >= 0) this.activitySeen = saved;
+    } catch {}
+  }
+  async loadActivityStatus() {
+    try {
+      this.readActivitySeen();
+      const status = await this.rawApi<{ latest: number; unseen: number }>(
+        `activity/status?after=${this.activitySeen}`,
+      );
+      this.activityLatest = status.latest;
+      this.activityUnseen = status.unseen;
+    } catch {
+      /* Activity availability must not disrupt playback. */
+    }
+  }
+  markActivitySeen() {
+    if (this.view !== "activity" || document.visibilityState !== "visible")
+      return;
+    this.activitySeen = Math.max(
+      this.activitySeen,
+      this.activityLatest,
+      ...this.activityItems.map((event) => event.id),
+    );
+    this.activityUnseen = 0;
+    try {
+      localStorage.setItem("playpod.activity.seen", String(this.activitySeen));
+    } catch {}
+  }
+  async loadActivity(more = false) {
+    if (this.view !== "activity" || this.activityLoading) return;
+    const seq = ++this.activitySequence;
+    this.activityLoading = true;
+    const args = new URLSearchParams({ kind: this.activityFilter });
+    if (more && this.activityCursor)
+      args.set("before", String(this.activityCursor));
+    try {
+      const page = await this.rawApi<ActivityPage>("activity?" + args);
+      if (seq !== this.activitySequence) return;
+      const overlaps = page.items.some((event) =>
+        this.activityItems.some((old) => old.id === event.id),
+      );
+      const old =
+        more || (overlaps && this.activityItems.length > 50)
+          ? this.activityItems
+          : [];
+      const merged = new Map(
+        [...old, ...page.items].map((event) => [event.id, event]),
+      );
+      this.activityItems = [...merged.values()]
+        .filter((event) => event.created >= Date.now() / 1000 - 90 * 86400)
+        .sort((a, b) => b.id - a.id);
+      if (more || !old.length) this.activityCursor = page.next_cursor;
+      this.activityLoaded = true;
+      this.activityError = "";
+      this.markActivitySeen();
+    } catch (error) {
+      if (seq === this.activitySequence) {
+        this.activityError = (error as Error).message;
+        this.activityLoaded = true;
+      }
+    } finally {
+      if (seq === this.activitySequence) this.activityLoading = false;
+    }
+  }
+  async openManagementTarget() {
+    const seq = ++this.routeSequence;
+    const target = managementTarget(location.hash);
+    if (!target) return;
+    // Invalidate any outgoing list request before resolving the target page.
+    this.sequence++;
+    try {
+      const locationInfo =
+        target.kind === "episodes"
+          ? await this.rawApi<{ feed_id: number; offset: number }>(
+              `episodes/${target.id}/location`,
+            )
+          : { feed_id: target.id, offset: 0 };
+      if (seq !== this.routeSequence || this.view !== "management") return;
+      this.query = "";
+      this.filter = "all";
+      this.feedFilter = locationInfo.feed_id;
+      this.offset = locationInfo.offset;
+      this.highlightedEpisode = target.kind === "episodes" ? target.id : null;
+      await this.loadManagement();
+      if (seq !== this.routeSequence) return;
+      await this.focusSection(
+        this.highlightedEpisode
+          ? `episode-${this.highlightedEpisode}`
+          : "episode-list",
+      );
+    } catch (error) {
+      if (seq !== this.routeSequence) return;
+      this.query = "";
+      this.filter = "all";
+      this.feedFilter = null;
+      await this.loadManagement();
+      this.notify((error as Error).message);
     }
   }
   perform(fn: () => Promise<unknown>, quiet = false): Promise<void> {
@@ -780,6 +927,7 @@ export class PlayPodApp extends LitElement {
       ${[
         ["player", t("Player"), "player"],
         ["management", t("Management"), "library"],
+        ["activity", t("Aktivität"), "activity"],
         ["config", t("Config"), "config"],
       ].map(
         ([v, label, i]) =>
@@ -789,7 +937,9 @@ export class PlayPodApp extends LitElement {
             aria-keyshortcuts=${v === "player" ? "P" : nothing}
             @click=${() => this.navigate(v)}
           >
-            ${icon(i)}${label}
+            ${icon(i)}<span
+              >${label}${v === "activity" && this.activityUnseen > 0 ? html`<span class="nav-count" aria-label=${t("{count} ungesehene Ereignisse", { count: this.activityUnseen })}>${this.activityUnseen > 99 ? "99+" : this.activityUnseen}</span>` : nothing}</span
+            >
           </button>`,
       )}
     </nav>`;
@@ -799,7 +949,15 @@ export class PlayPodApp extends LitElement {
     return html`<div @click=${this.onAction}>
       <aside class="sidebar">
         <div class="brand">
-          <span class="brand-mark">${icon("logo")}</span>PlayPod
+          <a
+            class="brand-mark"
+            href="https://github.com/desirevolution/playpod"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label=${t("PlayPod auf GitHub öffnen (neuer Tab)")}
+            title=${t("PlayPod auf GitHub öffnen (neuer Tab)")}
+            >${icon("logo")}</a
+          >PlayPod
         </div>
         ${this.nav()}
         <div class="sidebar-bottom">
@@ -808,11 +966,11 @@ export class PlayPodApp extends LitElement {
           </p>
         </div>
       </aside>
-      <main>
+      <main class=${this.view === "player" ? "view-player" : nothing}>
         <header class="top">
           <div>
             <h1 tabindex="-1">
-              ${{ player: t("Player"), management: t("Management"), config: t("Config") }[this.view]}
+              ${{ player: t("Player"), management: t("Management"), activity: t("Aktivität"), config: t("Config") }[this.view]}
             </h1>
           </div>
           <div class="playback-target">
@@ -844,7 +1002,7 @@ export class PlayPodApp extends LitElement {
             >${state?.phase === "announcement" ? (state.state === "pause" ? this.announcementLabel + t(" pausiert") : this.announcementLabel + t(" läuft")) : state?.state === "play" ? t("Wiedergabe läuft") : state?.state === "pause" ? t("Pausiert") : t("Gestoppt")}</span
           >
         </header>
-        ${this.connectionError ? html`<div class="error-banner" role="alert">${localizeMessage(this.connectionError)}</div>` : nothing}${state?.error ? html`<div class="error-banner" role="alert">${localizeMessage(state.error)}</div>` : nothing}${this.view === "player" ? this.renderPlayer() : this.view === "management" ? this.renderManagement() : this.renderConfig()}
+        ${this.connectionError ? html`<div class="error-banner" role="alert">${localizeMessage(this.connectionError)}</div>` : nothing}${state?.error ? html`<div class="error-banner" role="alert">${localizeMessage(state.error)}</div>` : nothing}${this.view === "player" ? this.renderPlayer() : this.view === "management" ? this.renderManagement() : this.view === "activity" ? renderActivity.call(this) : this.renderConfig()}
       </main>
       ${this.view !== "player" && state ? this.mini() : nothing}${this.nav(true)}${this.message ? html`<div class="toast" role="status">${localizeMessage(this.message)}</div>` : nothing}${this.renderDialog()}
     </div>`;

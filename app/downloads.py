@@ -18,6 +18,7 @@ from .feeds import web_url
 from .media import AUDIO_EXTENSIONS
 from .player import PlayerError
 from .ytdlp import extract
+from .activity import record
 
 
 class Cancelled(Exception):
@@ -105,8 +106,10 @@ class Downloads:
         with self.lock, self.db.connect() as conn:
             conn.execute("INSERT OR IGNORE INTO feeds(url,title,kind) VALUES('playpod-links://manual','YT-Importe','links')")
             feed_id = conn.execute("SELECT id FROM feeds WHERE url='playpod-links://manual'").fetchone()[0]
-            conn.execute("INSERT OR IGNORE INTO episodes(feed_id,source_key,title,url,source_type) VALUES(?,?,?,?, 'web')", (feed_id, key, url, url))
+            inserted = conn.execute("INSERT OR IGNORE INTO episodes(feed_id,source_key,title,url,source_type) VALUES(?,?,?,?, 'web')", (feed_id, key, url, url)).rowcount
             id_ = conn.execute('SELECT id FROM episodes WHERE feed_id=? AND source_key=?', (feed_id, key)).fetchone()[0]
+            if inserted:
+                record(conn, 'episode_added', episode_id=id_)
         episode = self.db.one('SELECT * FROM episodes WHERE id=?', (id_,))
         return self.start_download(episode)
 
@@ -176,6 +179,7 @@ class Downloads:
                 with self.db.connect() as conn:
                     conn.execute('UPDATE episodes SET title=?,description=?,duration=? WHERE id=?',
                                  (title, description, audio.info.length, row['episode_id']))
+                    conn.execute('UPDATE activity SET title=? WHERE episode_id=?', (title,row['episode_id']))
                     conn.execute("UPDATE downloads SET state='ready',phase='download',received=?,total=?,error='' WHERE id=?", (size, size, id_))
                 committed = True
         finally:

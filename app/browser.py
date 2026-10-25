@@ -9,6 +9,7 @@ from pydantic import Field
 from .contracts import Input
 from .player import PlayerError
 from .media import MediaError
+from .activity import record
 
 
 class BrowserProgress(Input):
@@ -17,6 +18,7 @@ class BrowserProgress(Input):
     duration: float = Field(default=0, ge=0, allow_inf_nan=False)
     started: bool = False
     completed: bool = False
+    playback_id: str | None = Field(default=None, min_length=1, max_length=100)
 
 
 def add_browser_routes(app, db, player, media, downloads):
@@ -52,12 +54,17 @@ def add_browser_routes(app, db, player, media, downloads):
     def progress(data: BrowserProgress):
         player.episode(data.episode_id)
         # Shared listening metadata; no MPD playback/queue/timer mutation.
-        db.execute("""UPDATE episodes SET position=?,
+        with db.connect() as conn:
+            previous = conn.execute('SELECT completed FROM episodes WHERE id=?', (data.episode_id,)).fetchone()
+            conn.execute("""UPDATE episodes SET position=?,
             duration=CASE WHEN ?>0 THEN ? ELSE duration END,
             last_started=CASE WHEN ? THEN ? ELSE last_started END,
             completed=CASE WHEN ? THEN 1 WHEN ? THEN 0 ELSE completed END WHERE id=?""",
             (min(data.position,data.duration) if data.duration else data.position,data.duration,data.duration,
              data.started,time.time(),data.completed,data.started,data.episode_id))
+            if data.completed and (data.playback_id or not previous[0]):
+                key = f'browser:{data.episode_id}:{data.playback_id}' if data.playback_id else None
+                record(conn, 'completed', episode_id=data.episode_id, target='browser', key=key)
         return {'ok':True}
 
     @app.get('/api/v1/browser/episodes/{episode_id}/stream')

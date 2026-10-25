@@ -49,6 +49,8 @@ def local_episode(app):
 
 def test_import_idempotent_keeps_progress_and_merker(media_rig):
     c,app,root,path,_,_=media_rig
+    initial=c.get('/api/v1/activity').json()['items']
+    assert len(initial)==1 and initial[0]['kind']=='feed_added' and initial[0]['count']==1
     ep=local_episode(app)
     assert ep['title']=='Test Episode'
     assert ep['duration']==pytest.approx(1)
@@ -62,6 +64,7 @@ def test_import_idempotent_keeps_progress_and_merker(media_rig):
     assert c.get('/api/v1/episodes?filter=local').json()['total']==1
     feed=c.get('/api/v1/feeds').json()[0]
     assert feed['kind']=='local'
+    assert c.get('/api/v1/activity').json()['items']==initial
 
 
 def test_real_http_range_head_suffix_and_invalid(media_rig):
@@ -217,7 +220,7 @@ def test_database_v1_migration_is_backed_up_and_non_destructive(tmp_path):
     ep=new.one('SELECT * FROM episodes WHERE id=7')
     assert ep['position']==123 and ep['bookmarked']==1
     assert new.one('SELECT * FROM queue')['episode_id']==7
-    assert new.one('PRAGMA user_version')['user_version']==4
+    assert new.one('PRAGMA user_version')['user_version']==5
     backup=Path(str(path)+'.before-v2.sqlite3')
     assert backup.exists()
     with sqlite3.connect(backup) as db:

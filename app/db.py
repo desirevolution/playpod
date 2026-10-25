@@ -52,7 +52,7 @@ class Database:
         with self.connect() as db:
             db.execute("PRAGMA journal_mode=WAL")
             version = db.execute("PRAGMA user_version").fetchone()[0]
-            if version > 4:
+            if version > 5:
                 raise RuntimeError("Diese Datenbank benötigt eine neuere PlayPod-Version.")
             if version == 0:
                 db.executescript(SCHEMA)
@@ -107,6 +107,29 @@ class Database:
                 db.execute("INSERT INTO schema_migrations VALUES(4)")
                 db.execute("PRAGMA user_version=4")
                 db.commit()
+            if version < 5:
+                if version > 0:
+                    backup = Path(path + '.before-v5.sqlite3')
+                    if not backup.exists():
+                        # Previous schema steps have committed before backing up.
+                        db.commit()
+                        dest = sqlite3.connect(backup)
+                        try:
+                            db.backup(dest)
+                        finally:
+                            dest.close()
+                db.execute('BEGIN IMMEDIATE')
+                db.execute('''CREATE TABLE activity(
+                    id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, created REAL NOT NULL,
+                    episode_id INTEGER REFERENCES episodes(id) ON DELETE SET NULL,
+                    feed_id INTEGER REFERENCES feeds(id) ON DELETE SET NULL,
+                    title TEXT NOT NULL, podcast TEXT NOT NULL, count INTEGER NOT NULL DEFAULT 1,
+                    target TEXT NOT NULL DEFAULT '', event_key TEXT UNIQUE)''')
+                db.execute('CREATE INDEX activity_created ON activity(created)')
+                db.execute('INSERT INTO schema_migrations VALUES(5)')
+                db.execute('PRAGMA user_version=5')
+            from .activity import prune
+            prune(db)
             # A killed refresh/cleanup job cannot resume halfway; results remain inspectable.
             db.execute("UPDATE jobs SET state='interrupted',error='App wurde neu gestartet' WHERE state='running'")
 

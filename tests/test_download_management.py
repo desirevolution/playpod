@@ -94,6 +94,9 @@ def test_page_link_real_ytdlp_ffmpeg_and_playback(download_rig, source):
     assert ep['source_type']=='web'
     assert ep['duration']>0
     assert ep['title']!=base+'/episode.wav'
+    activity=c.get('/api/v1/activity').json()['items']
+    imported=[event for event in activity if event['episode_id']==id_]
+    assert len(imported)==1 and imported[0]['title']==ep['title']
     assert c.post('/api/v1/episodes/play',json={'episode_id':id_}).json()['source_kind']=='local'
     assert '/downloads/' in mpd.song['file']
     mpd.start('http://other.test/audio.mp3')
@@ -142,7 +145,8 @@ def test_schema3_upgrade_keeps_downloads_and_backup(tmp_path):
     db.execute("INSERT INTO downloads(episode_id,id,source_url,state,updated) VALUES(1,'old','http://audio.test','ready',1)")
     db.execute('ALTER TABLE episodes DROP COLUMN source_type')
     db.execute('ALTER TABLE downloads DROP COLUMN phase')
-    db.execute('DELETE FROM schema_migrations WHERE version=4')
+    db.execute('DROP TABLE activity')
+    db.execute('DELETE FROM schema_migrations WHERE version>=4')
     db.execute('PRAGMA user_version=3')
     new=Database(path)
     assert new.one('SELECT * FROM episodes')['source_type']=='audio'

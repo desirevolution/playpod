@@ -25,6 +25,27 @@ class ValueBool(Input):
     value: bool
 
 
+class AnnouncementInput(Input):
+    text: str = Field(min_length=1, max_length=2000)
+
+    @model_validator(mode='after')
+    def valid_text(self):
+        self.text = self.text.strip()
+        if not self.text:
+            raise ValueError('Ansagetext darf nicht leer sein')
+        return self
+
+
+class AnnouncementResult(BaseModel):
+    id: str
+    text: str
+    state: Literal['queued', 'generating', 'playing', 'done', 'failed', 'cancelled']
+    error: str
+    created: float
+    finished: float | None
+    queue_position: int
+
+
 class ModeInput(Input):
     favorites_only: bool
 
@@ -115,7 +136,7 @@ class PlayerResult(BaseModel):
     model_config = ConfigDict(extra='allow')
     state: Literal['play', 'pause', 'stop', 'error']
     phase: Literal['announcement', 'episode']
-    announcement_kind: Literal['title', 'mode'] | None = None
+    announcement_kind: Literal['title', 'mode', 'custom'] | None = None
     announcement_text: str = ''
     elapsed: float
     duration: float
@@ -198,3 +219,30 @@ class DownloadStatusResult(BaseModel):
     ytdlp_enabled: bool
     storage: dict[str, int]
     items: list[DownloadResult]
+
+
+class ActivityResult(BaseModel):
+    id: int
+    kind: Literal['episode_added', 'feed_added', 'completed']
+    created: float
+    episode_id: int | None
+    feed_id: int | None
+    title: str
+    podcast: str
+    count: int
+    target: Literal['', 'mpd', 'browser']
+
+
+class ActivityPageResult(BaseModel):
+    items: list[ActivityResult]
+    next_cursor: int | None
+
+
+class ActivityStatusResult(BaseModel):
+    latest: int
+    unseen: int
+
+
+class EpisodeLocationResult(BaseModel):
+    feed_id: int
+    offset: int

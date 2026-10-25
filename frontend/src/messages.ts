@@ -1,5 +1,34 @@
 // German source messages are lookup keys; keep placeholders identical in all languages.
 export const english: Record<string, string> = {
+  Ansage: "Announcement",
+  "MPD konnte die Episode nach der Ansage nicht fortsetzen":
+    "MPD could not resume the episode after the announcement",
+  "Zeitlimit beim Fortsetzen nach der Ansage erreicht":
+    "Timed out while resuming after the announcement",
+  "Ansage beenden und nächste Episode starten":
+    "End announcement and start the next episode",
+  "Eine Ansage läuft bereits": "An announcement is already playing",
+  "Eine Ansage wird bereits vorbereitet":
+    "An announcement is already being prepared",
+  "Keine TTS-Audiodatei erhalten. TTS_AUDIO_URL prüfen.":
+    "No TTS audio file received. Check TTS_AUDIO_URL.",
+  "MPD konnte die Ansage nicht starten": "MPD could not start the announcement",
+  "Ansage fehlgeschlagen; Wiederherstellung der Wiedergabe steht noch aus":
+    "Announcement failed; playback restoration is still pending",
+  Aktivität: "Activity",
+  "{count} ungesehene Ereignisse": "{count} unseen events",
+  "Aktivität filtern": "Filter activity",
+  "Neue Episoden": "New episodes",
+  "Ereignisse der letzten 90 Tage. Zeitpunkte entsprechen deiner lokalen Zeitzone.":
+    "Events from the last 90 days. Times are shown in your local time zone.",
+  "Aktivität wird geladen …": "Loading activity …",
+  "Zu Ende gehört": "Finished listening",
+  "Podcast hinzugefügt": "Podcast added",
+  "Neue Episode": "New episode",
+  Browser: "Browser",
+  "Inzwischen gelöscht": "Since deleted",
+  "Noch keine Ereignisse für diesen Filter.": "No events for this filter yet.",
+  "PlayPod auf GitHub öffnen (neuer Tab)": "Open PlayPod on GitHub (new tab)",
   "Audio kann im Browser nicht abgespielt werden. Quelle oder Format prüfen; gegebenenfalls herunterladen.":
     "Audio cannot be played in this browser. Check the source or format, or download the episode.",
   "Zum Starten der Browserwiedergabe bitte erneut Abspielen drücken.":

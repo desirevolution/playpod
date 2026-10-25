@@ -90,3 +90,30 @@ Favorite-mode changes also use this audio-URL flow, including while paused/stopp
 ## MQTT and health
 
 Optional retained status on `MQTT_TOPIC` (default `podplayer/status`): play, pause, stop, error. `/api/live` checks process liveness; `/api/health` checks SQLite and optional MPD. Actual Node-RED/Home Assistant deployment and audio output must be tested in your network.
+
+## Text announcements (fire and forget)
+
+Send one request; no follow-up request or callback is required:
+
+```sh
+curl -X POST http://PLAYPOD-HOST:9393/api/v1/announcements \
+  -H 'Content-Type: application/json' \
+  -d '{"text":"Die Waschmaschine ist fertig."}'
+```
+
+The endpoint returns **202 Accepted** immediately with the job `id`, `state: "queued"` and `queue_position`. This acknowledges durable acceptance, not completed playback. The worker uses the existing `TTS_AUDIO_URL` contract; Node-RED/Home Assistant TTS configuration stays the same. Text is required (1–2000 characters, trimmed); only `text` is accepted.
+
+Announcements are played FIFO. PlayPod generates the first audio while the podcast continues, then pauses at the current position. Subsequent announcements play without restoring the podcast in between. The sleep timer stays frozen throughout the batch. When the queue is empty, the previous source and play/pause state are restored; a previously stopped output remains stopped. Failed messages are logged and skipped. Favorite-mode speech joins a running announcement batch. Queued text and the return context survive application restarts. Announcements do not create episode-completion activity.
+
+An explicit episode change/Next or an external MPD source change during the announcement batch cancels its remaining messages. Playback remains under the user's control. Announcements use MPD; the independent browser player is unaffected.
+
+For optional diagnostics: `GET /api/v1/announcements/ID` or `GET /api/v1/announcements`. States are `queued`, `generating`, `playing`, `done`, `failed`, `cancelled`; failures include `error`. The last 100 finished records are retained. Up to 50 active/pending messages are accepted; a full queue returns `429 announcement_queue_full`. Missing MPD/TTS configuration returns 503; invalid text returns 422. HTTP 202 does not require the caller to poll these endpoints.
+
+## Activity API
+
+`GET /api/v1/activity?kind=all|new|completed&limit=50&before=ID` returns `items` and `next_cursor` (null at the end). Each item contains its timestamp `created` (Unix seconds), kind (`episode_added`, `feed_added`, `completed`), snapshot titles, count, playback target and nullable episode/feed IDs. Only events from the last 90 days are retained. Use `next_cursor` as the next request's `before` value.
+
+`GET /api/v1/activity/status?after=ID` returns `latest` and `unseen`. The UI stores the seen ID per browser; there is no shared read state. `GET /api/v1/episodes/ID/location` returns the feed ID and 50-item page offset for an exact management link (`#management/episodes/ID`). Initial imports link to `#management/feeds/ID`.
+
+Browser progress optionally accepts `playback_id`, a stable identifier for one playback, to deduplicate completion retries. Existing progress clients and MPD/Node-RED playback commands remain compatible.
+

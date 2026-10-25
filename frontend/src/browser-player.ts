@@ -8,6 +8,11 @@ type Source = {
   source_kind: "remote" | "local";
 };
 const KEY = "playpod.browser.v1";
+// randomUUID requires a secure context; getRandomValues also works on private HTTP hosts.
+const newPlaybackId = () =>
+  Array.from(crypto.getRandomValues(new Uint8Array(16)), (value) =>
+    value.toString(16).padStart(2, "0"),
+  ).join("");
 
 /** Device-local playback. No MPD state, queue or timer endpoints are called. */
 export class BrowserPlayer {
@@ -33,6 +38,7 @@ export class BrowserPlayer {
   prepared = false;
   pendingSeek = false;
   needsStarted = false;
+  playbackId = "";
   generation = 0;
   advancing = false;
   lastTime = 0;
@@ -49,6 +55,7 @@ export class BrowserPlayer {
     favorites?: boolean;
     seconds?: number;
     volume?: number;
+    playback_id?: string;
   } = {};
   constructor(
     request: Request,
@@ -178,6 +185,7 @@ export class BrowserPlayer {
     if (Number.isInteger(this.restored.current)) {
       this.current = await get(this.restored.current!);
       this.position = Math.max(0, Number(this.restored.position) || 0);
+      this.playbackId = this.restored.playback_id || "";
     }
     const ids = Array.isArray(this.restored.queue)
       ? [
@@ -199,6 +207,7 @@ export class BrowserPlayer {
         KEY,
         JSON.stringify({
           current: this.current?.id,
+          playback_id: this.playbackId,
           position: this.position,
           queue: this.queue.map((e) => e.id),
           favorites: this.favorites,
@@ -275,6 +284,7 @@ export class BrowserPlayer {
       duration: this.current.duration || 0,
       completed,
       started,
+      playback_id: this.playbackId || undefined,
     };
     this.progressChain = this.progressChain
       .catch(() => {})
@@ -316,7 +326,13 @@ export class BrowserPlayer {
       }
     }
   }
-  async start(id: number, manual = true, fromStart = false, position?: number) {
+  async start(
+    id: number,
+    manual = true,
+    fromStart = false,
+    position?: number,
+    playbackId?: string,
+  ) {
     const gen = ++this.generation;
     const playing = !this.audio.paused;
     this.tick();
@@ -327,6 +343,7 @@ export class BrowserPlayer {
     );
     if (gen !== this.generation) return false;
     this.current = source.episode;
+    this.playbackId = playbackId || newPlaybackId();
     this.kind = source.source_kind;
     this.error = "";
     this.prepared = true;
@@ -390,10 +407,17 @@ export class BrowserPlayer {
       return;
     }
     if (!this.prepared || this.audio.error) {
-      await this.start(this.current.id, restartTimer, false, this.position);
+      await this.start(
+        this.current.id,
+        restartTimer,
+        false,
+        this.position,
+        this.playbackId || undefined,
+      );
       return;
     }
     if (this.audio.ended) {
+      this.playbackId = newPlaybackId();
       this.audio.currentTime = 0;
       this.lastTime = 0;
       this.needsStarted = true;

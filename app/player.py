@@ -2,6 +2,8 @@
 import logging
 import threading
 import time
+import uuid
+from .activity import record
 from copy import deepcopy
 
 log = logging.getLogger(__name__)
@@ -45,6 +47,19 @@ class Player:
         self.stop_event = threading.Event()
         self.thread = None
         self.monitor_wake = threading.Event()
+        self.announcement_lock = threading.Lock()
+        self.announcement_wake = threading.Event()
+        self.announcement_thread = None
+        self.announcements = db.get('announcement_jobs', [])
+        active_job = self.saved.get('intro', {}).get('announcement_id')
+        for job in self.announcements:
+            if job['state'] == 'generating':
+                job['state'] = 'queued'
+            elif job['state'] == 'playing' and job['id'] != active_job:
+                # Startup interrupted the handoff before a return context was saved.
+                job['state'] = 'queued'
+        if self.announcements:
+            self._save_announcements()
 
     @property
     def status(self):
@@ -81,7 +96,7 @@ class Player:
 
     def _timer_suspended(self):
         intro = self.saved.get('intro')
-        return bool(intro and (intro.get('kind') == 'mode' or intro.get('restart_timer')))
+        return bool(intro and (intro.get('kind') in ('mode', 'custom') or intro.get('restart_timer')))
 
     def state(self):
         with self.lock:
@@ -93,12 +108,12 @@ class Player:
                     ep = self.episode(current_id)
                 except PlayerError:
                     pass
-            mode_announcement = bool(intro and intro.get('kind') == 'mode')
+            restorable_announcement = bool(intro and intro.get('kind') in ('mode', 'custom'))
             return {**self.status, "phase": "announcement" if intro else "episode",
-                    "announcement_kind": ('mode' if mode_announcement else 'title') if intro else None,
+                    "announcement_kind": intro.get('kind', 'title') if intro else None,
                     "announcement_text": intro.get('text', ep['title'] if ep else '') if intro else '',
                     "elapsed": intro["position"] if intro else self._elapsed(),
-                    "duration": ep["duration"] if intro and ep else intro.get('display_duration', 0) if mode_announcement else self.status["duration"],
+                    "duration": ep["duration"] if intro and ep else intro.get('display_duration', 0) if restorable_announcement else self.status["duration"],
                     "current": ep, "queue": self.queue(), "revision": self.revision,
                     "source_kind": intro["source_kind"] if intro else self.saved.get("source_kind", "remote"),
                     "favorites_only": self.mode, "error": self.error,
@@ -160,7 +175,7 @@ class Player:
         self.saved.update(remaining=self.saved['timer_seconds'], deadline=None)
         intro = self.saved.get('intro')
         if intro:
-            target = intro['resume']['playback'].get('intro') if intro.get('kind') == 'mode' else intro
+            target = intro['resume']['playback'].get('intro') if intro.get('kind') in ('mode', 'custom') else intro
             if target:
                 target['restart_timer'] = True
 
@@ -197,6 +212,7 @@ class Player:
             # source was paused and must not gain any estimated playback time.
             self._checkpoint(estimate=self.previous_state is not None)
             self.saved["episode_id"] = episode_id
+            self.saved['activity_run'] = uuid.uuid4().hex
             self.saved["song_id"] = song.get("id")
             self.saved["source_url"] = file
             self.saved["source_kind"] = "local" if self.media and self.media.match_url(file) else "remote"
@@ -247,7 +263,10 @@ class Player:
                 # A natural end must be observed at the end of the SAME episode, without an MPD error.
                 if ended and not expired:
                     ep = self.saved["episode_id"]
-                    self.db.execute("UPDATE episodes SET completed=1,position=duration WHERE id=?", (ep,))
+                    with self.db.connect() as conn:
+                        conn.execute("UPDATE episodes SET completed=1,position=duration WHERE id=?", (ep,))
+                        run = self.saved.setdefault('activity_run', uuid.uuid4().hex)
+                        record(conn, 'completed', episode_id=ep, target='mpd', key=f'mpd:{ep}:{run}')
                     self._advance(natural=True)
                 elif status["mpd_error"] and self.previous_state == "play" and not expired:
                     ep = self.saved["episode_id"]
@@ -274,8 +293,8 @@ class Player:
 
     def start_episode(self, episode_id, from_start=False, *, announce=True, position_override=None, restart_timer=False):
         with self.lock:
-            if self.saved.get('intro', {}).get('kind') == 'mode':
-                self._interrupt_mode_announcement()
+            if self.saved.get('intro', {}).get('kind') in ('mode', 'custom'):
+                self._interrupt_announcement()
             self._checkpoint()
             ep = self.episode(episode_id)
             position = position_override if position_override is not None else (0 if from_start or ep["completed"] else ep["position"])
@@ -352,6 +371,7 @@ class Player:
             if self.saved["deadline"] is None and self.saved["timer_seconds"]:
                 self.saved["deadline"] = self.clock() + self.saved["remaining"]
             self.saved.update(episode_id=episode_id, song_id=song_id, source_url=source_url, source_kind=source_kind)
+            self.saved['activity_run'] = uuid.uuid4().hex
             self.db.execute("UPDATE episodes SET last_started=?,completed=0,position=? WHERE id=?", (self.clock(), position, episode_id))
             if self.db.one("SELECT 1 FROM queue WHERE episode_id=?", (episode_id,)):
                 self.db.execute("DELETE FROM queue WHERE episode_id=?", (episode_id,))
@@ -366,23 +386,29 @@ class Player:
     def _sync_intro(self, status, song):
         intro = self.saved['intro']
         file = song.get('file', '')
-        if (intro.get('kind') == 'mode' and intro.get('restoring')
+        if (intro.get('kind') in ('mode', 'custom') and intro.get('restoring')
                 and (not file or file in (intro['url'], intro['resume']['song'].get('file')))):
             # A restore may have selected the original source before a connection failed.
             # Complete it instead of mistaking our own selection for an external change.
-            self._finish_mode_announcement()
+            self._finish_announcement()
             return True
         if file and file != intro['url']:
             # Another MPD client selected a source. Cancel the pending transition.
-            if intro.get('kind') == 'mode':
-                self._restore_mode_metadata(intro)
+            if intro.get('kind') in ('mode', 'custom'):
+                if intro.get('kind') == 'custom':
+                    self._cancel_announcements()
+                self._restore_announcement_metadata(intro)
                 # The external source also supersedes any interrupted title announcement.
             self.saved.pop('intro', None)
             self.previous_state = None
             self.persist()
             return False
+        if intro.get('kind') == 'custom' and intro.get('waiting_next'):
+            self.status, self.last_song, self.error = status, song, ''
+            self.announcement_wake.set()
+            return True
         self.status, self.last_song, self.error = status, song, ''
-        if status['state'] == 'play' and self.previous_state == 'pause':
+        if status['state'] == 'play' and self.previous_state == 'pause' and intro.get('kind') != 'custom':
             self._restart_sleep_timer()
         expired = self.saved['deadline'] is not None and self.remaining() <= 0
         if expired:
@@ -396,17 +422,21 @@ class Player:
         if self.status['state'] == 'pause' and self.saved['deadline'] is not None:
             self._freeze()
         if status['mpd_error'] and not expired:
+            if intro.get('kind') == 'custom':
+                self._end_announcement_job(intro.get('announcement_id'), 'failed', 'MPD konnte die Ansage nicht abspielen')
             log.warning('Ansage mit MPD-Fehler beendet; Wiedergabeübergang wird ausgeführt')
             self._finish_intro()
             return True
-        # A stopped player on app startup must not trigger unsolicited playback.
-        ended = status['state'] == 'stop' and self.previous_state == 'play'
+        # An accepted custom queue can finish its interrupted handoff after restart.
+        ended = status['state'] == 'stop' and (self.previous_state == 'play' or (intro.get('kind') == 'custom' and self.previous_state is None))
         if status['state'] == 'play' and not expired:
             if intro['timeout_at'] is None:
                 intro['timeout_at'] = self.clock() + intro['timeout_remaining']
-            if intro.get('kind') != 'mode' and not intro.get('restart_timer') and self.saved['run_active'] and self.saved['timer_seconds'] and self.saved['deadline'] is None:
+            if intro.get('kind') not in ('mode', 'custom') and not intro.get('restart_timer') and self.saved['run_active'] and self.saved['timer_seconds'] and self.saved['deadline'] is None:
                 self.saved['deadline'] = self.clock() + self.saved['remaining']
             if self.clock() >= intro['timeout_at']:
+                if intro.get('kind') == 'custom':
+                    self._end_announcement_job(intro.get('announcement_id'), 'failed', 'Zeitlimit der Ansage erreicht')
                 log.warning('Zeitlimit der Ansage erreicht; Wiedergabeübergang wird ausgeführt')
                 self._finish_intro()
                 return True
@@ -420,8 +450,8 @@ class Player:
 
     def _finish_intro(self):
         intro = self.saved['intro']
-        if intro.get('kind') == 'mode':
-            self._finish_mode_announcement()
+        if intro.get('kind') in ('mode', 'custom'):
+            self._finish_announcement()
             return
         if self.status['state'] in ('play', 'pause'):
             self.mpd.call('stop')
@@ -508,8 +538,8 @@ class Player:
 
     def next(self):
         with self.lock:
-            if self.saved.get('intro', {}).get('kind') == 'mode':
-                self._interrupt_mode_announcement()
+            if self.saved.get('intro', {}).get('kind') in ('mode', 'custom'):
+                self._interrupt_announcement()
             if self.saved.get("intro"):
                 self.saved['intro']['restart_timer'] = True
                 self._finish_intro()
@@ -652,11 +682,11 @@ class Player:
         with self.lock:
             if self.saved.get('intro'):
                 intro = self.saved['intro']
-                if intro.get('kind') == 'mode' and not intro['resume']['song']:
+                if intro.get('kind') in ('mode', 'custom') and not intro['resume']['song']:
                     raise PlayerError('Keine aktive Episode')
                 duration = self.episode(intro['episode_id'])['duration'] if intro['episode_id'] else intro.get('display_duration', 0)
                 intro['position'] = max(0, min(position, duration)) if duration else max(0, position)
-                if intro.get('kind') == 'mode':
+                if intro.get('kind') in ('mode', 'custom'):
                     original_intro = intro['resume']['playback'].get('intro')
                     if original_intro:
                         original_intro['position'] = intro['position']
@@ -692,36 +722,157 @@ class Player:
                     self.sync()
                     log.warning('Modusansage nicht verfügbar; Modus wurde trotzdem geändert', exc_info=True)
 
-    def _restore_mode_metadata(self, intro):
+    def _restore_announcement_metadata(self, intro):
         """Restore identities without checkpointing announcement seconds onto an episode."""
         resume = intro['resume']
         self.saved.pop('intro', None)
         self.saved.update(deepcopy(resume['playback']))
         self.status, self.last_song = dict(resume['status']), dict(resume['song'])
 
-    def _interrupt_mode_announcement(self):
+    def _interrupt_announcement(self):
         # A manual episode change must not briefly resume the old podcast first.
         intro = self.saved['intro']
         self.mpd.call('stop')
-        self._restore_mode_metadata(intro)
+        if intro.get('kind') == 'custom':
+            self._cancel_announcements()
+        self._restore_announcement_metadata(intro)
         self.previous_state = self.status['state']
         self.persist()
 
+    def _save_announcements(self):
+        terminal = [job for job in self.announcements if job['state'] in ('done', 'failed', 'cancelled')]
+        keep = {job['id'] for job in terminal[-100:]}
+        self.announcements = [job for job in self.announcements
+                              if job['state'] not in ('done', 'failed', 'cancelled') or job['id'] in keep]
+        self.db.put('announcement_jobs', self.announcements)
+
+    def _announcement_result(self, job):
+        pending = [item['id'] for item in self.announcements if item['state'] in ('queued', 'generating')]
+        return {**job, 'queue_position': pending.index(job['id']) + 1 if job['id'] in pending else 0}
+
+    def announcement_status(self, id_=None):
+        with self.lock:
+            if id_ is None:
+                return [self._announcement_result(job) for job in self.announcements]
+            job = next((item for item in self.announcements if item['id'] == id_), None)
+            if job is None:
+                raise PlayerError('Ansage nicht gefunden', code='not_found', status_code=404)
+            return self._announcement_result(job)
+
+    def announce(self, text):
+        with self.lock:
+            settings = getattr(self.notifications, 'settings', None)
+            if settings is not None and hasattr(settings, 'tts_audio_url') and not settings.tts_audio_url:
+                raise PlayerError('TTS_AUDIO_URL ist nicht konfiguriert', code='tts_not_configured', status_code=503)
+            if sum(job['state'] in ('queued', 'generating', 'playing') for job in self.announcements) >= 50:
+                raise PlayerError('Die Ansagewarteschlange ist voll', code='announcement_queue_full', status_code=429)
+            job = {'id': uuid.uuid4().hex, 'text': text, 'state': 'queued', 'error': '',
+                   'created': time.time(), 'finished': None}
+            self.announcements.append(job)
+            self._save_announcements()
+            self.announcement_wake.set()
+            return self._announcement_result(job)
+
+    def _end_announcement_job(self, id_, state='done', error=''):
+        job = next((item for item in self.announcements if item['id'] == id_), None)
+        if job and job['state'] not in ('done', 'failed', 'cancelled'):
+            job.update(state=state, error=error, finished=time.time())
+            self._save_announcements()
+
+    def _cancel_announcements(self):
+        for job in self.announcements:
+            if job['state'] in ('queued', 'generating', 'playing'):
+                job.update(state='cancelled', finished=time.time())
+        self._save_announcements()
+
+    def process_announcements(self):
+        # One worker generates speech; the MPD monitor and API controls keep running.
+        if not self.announcement_lock.acquire(blocking=False):
+            return False
+        job = None
+        try:
+            with self.lock:
+                intro = self.saved.get('intro')
+                if intro and not (intro.get('kind') == 'custom' and intro.get('waiting_next')):
+                    return False
+                job = next((item for item in self.announcements if item['state'] == 'queued'), None)
+                if job is None:
+                    return False
+                job['state'] = 'generating'
+                self._save_announcements()
+            try:
+                audio = self.notifications.title_audio(job['text'])
+                if not audio:
+                    raise PlayerError('Keine TTS-Audiodatei erhalten. TTS_AUDIO_URL prüfen.', code='tts_unavailable', status_code=502)
+                with self.lock:
+                    if self.stop_event.is_set():
+                        if job['state'] == 'generating':
+                            job['state'] = 'queued'
+                            self._save_announcements()
+                        return False
+                    if job['state'] == 'cancelled':
+                        return True
+                    self.sync()
+                    self._require_mpd()
+                    intro = self.saved.get('intro')
+                    if intro and not (intro.get('kind') == 'custom' and intro.get('waiting_next')):
+                        job['state'] = 'queued'
+                        self._save_announcements()
+                        return False
+                    job['state'] = 'playing'
+                    self._save_announcements()
+                    self._start_announcement(job['text'], audio, kind='custom', strict=True, job_id=job['id'])
+            except Exception as exc:
+                with self.lock:
+                    # A concurrent manual source change wins over generated audio.
+                    if job['state'] != 'cancelled':
+                        job.update(state='failed', error=str(exc) if isinstance(exc, PlayerError) else 'Ansage konnte nicht erzeugt oder abgespielt werden', finished=time.time())
+                        self._save_announcements()
+                    intro = self.saved.get('intro', {})
+                    if intro.get('waiting_next') and not any(item['state'] in ('queued', 'generating') for item in self.announcements):
+                        self._finish_announcement()
+                log.warning('Ansage fehlgeschlagen', exc_info=True)
+            return True
+        finally:
+            self.announcement_lock.release()
+
+    def start_announcement_worker(self):
+        def loop():
+            while not self.stop_event.is_set():
+                try:
+                    worked = self.process_announcements()
+                except Exception:
+                    log.warning('Ansagewarteschlange konnte nicht verarbeitet werden', exc_info=True)
+                    worked = False
+                if not worked:
+                    self.announcement_wake.wait(.5)
+                    self.announcement_wake.clear()
+        self.announcement_thread = threading.Thread(target=loop, name='announcements', daemon=True)
+        self.announcement_thread.start()
+
     def _announce_mode(self, text):
+        if (self.announcement_lock.locked() or self.saved.get('intro', {}).get('kind') == 'custom'
+                or any(job['state'] in ('queued', 'generating') for job in self.announcements)):
+            # Mode changes still speak, but join an existing announcement batch.
+            self.announce(text)
+            return
         audio = self.notifications.title_audio(text)
         if not audio:
             return
+        self._start_announcement(text, audio, kind='mode')
+
+    def _start_announcement(self, text, audio, *, kind, strict=False, job_id=None):
         self.sync()
         self._require_mpd()
         current = self.saved.get('intro')
         display = self.state()
-        if current and current.get('kind') == 'mode':
+        if current and current.get('kind') in ('mode', 'custom'):
             # Repeated mode changes replace the speech, never stack return contexts.
             resume = deepcopy(current['resume'])
         else:
             self._checkpoint()
             resume = {'playback': {k: deepcopy(self.saved[k]) for k in
-                      ('episode_id', 'song_id', 'source_url', 'source_kind', 'intro') if k in self.saved},
+                      ('episode_id', 'song_id', 'source_url', 'source_kind', 'activity_run', 'intro') if k in self.saved},
                       'status': dict(self.status), 'song': dict(self.last_song)}
         was_playing = self.status['state'] == 'play'
         self._freeze()
@@ -730,7 +881,7 @@ class Player:
             original_intro['timeout_remaining'] = max(0, original_intro['timeout_at'] - self.clock())
             original_intro['timeout_at'] = None
         timeout = getattr(getattr(self.notifications, 'settings', None), 'tts_playback_timeout_seconds', 120)
-        intro = {'kind': 'mode', 'text': text, 'episode_id': display['current']['id'] if display['current'] else None,
+        intro = {'kind': kind, 'text': text, 'announcement_id': job_id, 'episode_id': display['current']['id'] if display['current'] else None,
                  'position': display['elapsed'], 'display_duration': display['duration'],
                  'source_kind': display['source_kind'], 'url': audio, 'resume': resume,
                  'timeout_remaining': timeout, 'timeout_at': self.clock() + timeout}
@@ -742,7 +893,7 @@ class Player:
             if was_playing:
                 self.mpd.call('pause', 1)
                 paused, paused_song = self._read()
-                if (not current or current.get('kind') != 'mode') and paused_song:
+                if (not current or current.get('kind') not in ('mode', 'custom')) and paused_song:
                     resume['status']['elapsed'] = paused['elapsed']
                     resume['song'] = paused_song
                     if not current:
@@ -755,18 +906,36 @@ class Player:
                 time.sleep(.1)
                 status, song = self._read()
             if status['state'] != 'play' or status['mpd_error']:
-                raise PlayerError('MPD konnte die Modusansage nicht starten')
-        except Exception:
-            self._finish_mode_announcement()
-            log.warning('Modusansage konnte nicht gestartet werden; vorherige Wiedergabe wiederhergestellt')
+                raise PlayerError('MPD konnte die Ansage nicht starten')
+        except Exception as exc:
+            try:
+                self._finish_announcement()
+            except Exception as restore_error:
+                if strict:
+                    raise MPDUnavailable('Ansage fehlgeschlagen; Wiederherstellung der Wiedergabe steht noch aus') from restore_error
+                raise
+            if strict:
+                raise PlayerError('MPD konnte die Ansage nicht starten', code='announcement_failed', status_code=502) from exc
+            log.warning('Ansage konnte nicht gestartet werden; vorherige Wiedergabe wiederhergestellt')
             return
         self.status, self.last_song, self.error = status, song, ''
         self.previous_state, self.previous_elapsed, self.previous_duration = status['state'], status['elapsed'], status['duration']
         self.persist()
         self.notifications.publish('play')
 
-    def _finish_mode_announcement(self):
+    def _finish_announcement(self):
         intro = self.saved['intro']
+        if intro.get('kind') == 'custom' and not intro.get('restoring'):
+            self._end_announcement_job(intro.get('announcement_id'))
+            if any(job['state'] in ('queued', 'generating') for job in self.announcements):
+                if self.status['state'] in ('play', 'pause'):
+                    self.mpd.call('stop')
+                intro.update(waiting_next=True, timeout_at=None)
+                self.status, self.last_song = self._read()
+                self.previous_state = self.status['state']
+                self.persist()
+                self.announcement_wake.set()
+                return
         resume = intro['resume']
         wanted = resume['status']['state']
         source = resume['song'].get('file')
@@ -784,12 +953,12 @@ class Player:
             if status['mpd_error']:
                 intro.pop('restore_song_id', None)
                 self.persist()
-                raise PlayerError('MPD konnte die Episode nach der Modusansage nicht fortsetzen: ' + status['mpd_error'])
+                raise PlayerError('MPD konnte die Episode nach der Ansage nicht fortsetzen: ' + status['mpd_error'])
             if status['state'] != wanted or song.get('file') != source or song.get('id') != song_id:
                 if self.clock() >= intro['restore_timeout_at']:
                     intro.pop('restore_song_id', None)
                     self.persist()
-                    raise PlayerError('Zeitlimit beim Fortsetzen nach der Modusansage erreicht')
+                    raise PlayerError('Zeitlimit beim Fortsetzen nach der Ansage erreicht')
                 # Buffering is a transition, not a disconnected MPD. Keep the
                 # return context and frozen timer until the source is confirmed.
                 self.status, self.last_song, self.error = status, song, ''
@@ -799,7 +968,7 @@ class Player:
             self.mpd.call('clear')
             song_id = None
             status, song = self._read()
-        self._restore_mode_metadata(intro)
+        self._restore_announcement_metadata(intro)
         self.saved['song_id'] = song_id
         if not song and not self.saved.get('intro'):
             self.saved.update(episode_id=None, source_url=None)
@@ -831,6 +1000,8 @@ class Player:
     def delete_episodes(self, ids):
         with self.lock:
             if self.saved["episode_id"] in ids or self.saved.get("intro", {}).get("episode_id") in ids:
+                if self.saved.get('intro', {}).get('kind') == 'custom':
+                    self._cancel_announcements()
                 self.mpd.call("stop")
                 self._freeze()
                 self.saved.pop("intro", None)
@@ -874,6 +1045,9 @@ class Player:
     def close(self):
         self.stop_event.set()
         self.monitor_wake.set()
+        self.announcement_wake.set()
+        if self.announcement_thread:
+            self.announcement_thread.join(timeout=7)
         if self.thread:
             self.thread.join(timeout=7)
         close = getattr(self.mpd, 'close', None)

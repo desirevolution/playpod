@@ -16,7 +16,8 @@ from .contracts import (LinkInput, FeedDownloadInput, FeedInput, ValueBool, Mode
     PlaybackInput, SleepDefaultsInput, SeekInput, VolumeInput, VolumeAdjustInput, TimerInput, ExtendInput,
     EpisodeInput, PlayEpisodeInput, OrderInput, DeleteInput, PlayerResult, QueueAddedResult,
     JobAccepted, ErrorResult, FeedResult, EpisodeResult, EpisodeListResult,
-    JobResult, DownloadResult, DownloadAccepted, DownloadStatusResult)
+    JobResult, DownloadResult, DownloadAccepted, DownloadStatusResult,
+    ActivityPageResult, ActivityStatusResult, EpisodeLocationResult, AnnouncementInput, AnnouncementResult)
 
 from . import __version__
 from .config import Settings
@@ -26,6 +27,7 @@ from .integrations import MPD, DisabledMPD, Notifications
 from .player import Player, PlayerError, MPDUnavailable
 from .media import MediaLibrary, MediaError
 from .downloads import Downloads
+from .activity import listing, prune
 
 
 
@@ -50,6 +52,7 @@ def create_app(settings=None, *, mpd=None, notifications=None, background=True):
             notifications.start()
             if mpd_configured:
                 player.start_monitor()
+                player.start_announcement_worker()
             jobs.start_scheduler()
             downloads.start()
         try:
@@ -155,6 +158,21 @@ def create_app(settings=None, *, mpd=None, notifications=None, background=True):
     def seek(data: SeekInput):
         return player_command(lambda: player.seek_to(data.position_seconds, data.offset_seconds))
 
+    @app.post('/api/v1/announcements', status_code=202, response_model=AnnouncementResult,
+              responses={429: {'model': ErrorResult}})
+    def announce(data: AnnouncementInput):
+        """Accept text into the persistent FIFO queue; playback runs in the background."""
+        require_mpd()
+        return player.announce(data.text)
+
+    @app.get('/api/v1/announcements', response_model=list[AnnouncementResult])
+    def announcements():
+        return player.announcement_status()
+
+    @app.get('/api/v1/announcements/{announcement_id}', response_model=AnnouncementResult)
+    def announcement(announcement_id: str):
+        return player.announcement_status(announcement_id)
+
     @app.put('/api/v1/volume', response_model=PlayerResult)
     def volume(data: VolumeInput):
         return player_command(lambda: player.set_volume(data.value))
@@ -255,6 +273,28 @@ def create_app(settings=None, *, mpd=None, notifications=None, background=True):
             return accepted_job("media")
         return accepted_job("refresh", feed_id)
 
+    @app.get('/api/v1/activity', response_model=ActivityPageResult)
+    def activity(kind: Literal['all','new','completed'] = 'all', before: int | None = Query(None, ge=1), limit: int = Query(50, ge=1, le=200)):
+        return listing(db, kind, before, limit)
+
+    @app.get('/api/v1/activity/status', response_model=ActivityStatusResult)
+    def activity_status(after: int = Query(0, ge=0)):
+        with db.connect() as conn:
+            prune(conn)
+            row = conn.execute('SELECT COALESCE(MAX(id),0) AS latest,COUNT(CASE WHEN id>? THEN 1 END) AS unseen FROM activity', (after,)).fetchone()
+            return dict(row)
+
+    @app.get('/api/v1/episodes/{episode_id}/location', response_model=EpisodeLocationResult)
+    def episode_location(episode_id: int):
+        with db.connect() as conn:
+            ep = conn.execute('SELECT feed_id,published,id FROM episodes WHERE id=?', (episode_id,)).fetchone()
+            if not ep:
+                raise HTTPException(404, 'Episode nicht gefunden')
+            rank = conn.execute('''SELECT COUNT(*) FROM episodes WHERE feed_id=? AND
+                (published>? OR (published IS ? AND id>?) OR (? IS NULL AND published IS NOT NULL))''',
+                (ep['feed_id'],ep['published'],ep['published'],episode_id,ep['published'])).fetchone()[0]
+            return {'feed_id': ep['feed_id'], 'offset': (rank // 50) * 50}
+
     @app.get("/api/v1/episodes", response_model=EpisodeListResult)
     def episodes(q: str = "", filter: Literal["all", "marked", "new", "started", "completed", "local", "downloaded"] = "all", feed_id: int | None = None, offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=200)):
         where, args = ["1=1"], []
@@ -340,7 +380,7 @@ def create_app(settings=None, *, mpd=None, notifications=None, background=True):
             except Exception as exc:
                 raise PlayerError('MPD ist nicht erreichbar; Dateinutzung kann nicht geprüft werden') from exc
             intro = player.saved.get('intro', {})
-            resume_url = intro.get('resume', {}).get('song', {}).get('file', '') if intro.get('kind') == 'mode' else ''
+            resume_url = intro.get('resume', {}).get('song', {}).get('file', '') if intro.get('kind') in ('mode', 'custom') else ''
             if downloads.match_url(song.get('file', '')) == episode_id or downloads.match_url(resume_url) == episode_id:
                 raise PlayerError('Diese lokale Datei wird noch von MPD verwendet. Erst die Wiedergabequelle wechseln.')
             downloads.remove_copy(episode_id)

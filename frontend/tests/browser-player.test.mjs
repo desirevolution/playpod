@@ -29,6 +29,27 @@ function rig(t,saved={}){
 }
 const settled=()=>new Promise(r=>setTimeout(r,0));
 
+test('activity playback identifiers survive pause and reload and change on replay', async t => {
+  const {p,audio,calls,data}=rig(t, {seconds:0,when_queue_empty:'stop'});
+  await p.init();
+  await p.start(1);
+  await p.progressChain;
+  const first=p.playbackId;
+  assert.match(first,/^[0-9a-f]{32}$/);
+  p.pause(); await p.play();
+  assert.equal(p.playbackId,first);
+  assert.equal(JSON.parse(data.get('playpod.browser.v1')).playback_id,first);
+  const restored=rig(t,JSON.parse(data.get('playpod.browser.v1'))).p;
+  await restored.init();
+  assert.equal(restored.playbackId,first);
+  audio.finish(); await settled(); await p.progressChain;
+  const completed=calls.filter(call=>call.path==='browser/progress'&&call.body.completed);
+  assert.equal(completed.length,1);
+  assert.equal(completed[0].body.playback_id,first);
+  await p.play();
+  assert.notEqual(p.playbackId,first);
+});
+
 test('browser controls and queue never use MPD endpoints',async t=>{
   const {p,audio,calls}=rig(t);await p.init();
   await p.command('queue','POST',{episode_id:2});

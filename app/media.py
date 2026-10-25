@@ -13,6 +13,7 @@ from urllib.parse import urlsplit
 import mutagen
 
 from .feeds import safe_html, web_url
+from .activity import record
 
 AUDIO_EXTENSIONS = {".mp3", ".m4a", ".m4b", ".aac", ".ogg", ".oga", ".opus", ".flac", ".wav", ".aiff", ".aif", ".webm"}
 MIME_TYPES = {".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".m4b": "audio/mp4", ".aac": "audio/aac", ".ogg": "audio/ogg", ".oga": "audio/ogg", ".opus": "audio/ogg", ".flac": "audio/flac", ".wav": "audio/wav", ".aiff": "audio/aiff", ".aif": "audio/aiff", ".webm": "audio/webm"}
@@ -196,11 +197,14 @@ class MediaLibrary:
                         except OSError:
                             errors.append(relative)
                 with self.db.connect() as conn:
-                    feed = conn.execute("SELECT id FROM feeds WHERE kind='local' AND media_root_id=?", (root["id"],)).fetchone()
+                    feed = conn.execute("SELECT id,last_success FROM feeds WHERE kind='local' AND media_root_id=?", (root["id"],)).fetchone()
                     if not feed:
                         raise RuntimeError("Lokaler Katalog fehlt")
+                    initial = feed['last_success'] is None and not conn.execute('SELECT 1 FROM episodes WHERE feed_id=?', (feed[0],)).fetchone()
+                    added = []
                     for relative, stat, title, duration, description in files:
                         key = "local:" + hashlib.sha256(relative.encode()).hexdigest()
+                        existing = conn.execute('SELECT id FROM episodes WHERE feed_id=? AND source_key=?', (feed[0],key)).fetchone()
                         conn.execute("""INSERT INTO episodes(feed_id,source_key,title,url,description,duration,local_source,media_root_id,file_size,file_mtime_ns,source_present,availability)
                           VALUES(?,?,?,'',?,?,?,?,?,?,1,'local_available')
                           ON CONFLICT(feed_id,source_key) DO UPDATE SET title=excluded.title,description=excluded.description,
@@ -208,6 +212,13 @@ class MediaLibrary:
                           file_size=excluded.file_size,file_mtime_ns=excluded.file_mtime_ns,source_present=1,availability='local_available'""",
                           (feed[0], key, title, description, duration, relative, root["id"], stat.st_size, stat.st_mtime_ns))
                         imported += 1
+                        if not existing:
+                            added.append(conn.execute('SELECT id FROM episodes WHERE feed_id=? AND source_key=?', (feed[0],key)).fetchone()[0])
+                    if initial and added:
+                        record(conn, 'feed_added', feed_id=feed[0], count=len(added))
+                    else:
+                        for episode_id in added:
+                            record(conn, 'episode_added', episode_id=episode_id)
                     for relative in pending:
                         conn.execute("UPDATE episodes SET source_present=0,availability='local_pending' WHERE media_root_id=? AND local_source=? AND url=''", (root["id"], relative))
                     missing = 0

@@ -161,6 +161,8 @@ h3 {
   border-radius: 12px;
   background: var(--green);
   color: var(--ink);
+  flex-shrink: 0;
+  text-decoration: none;
 }
 .brand-mark svg {
   width: 24px;
@@ -193,6 +195,9 @@ main {
   max-width: 1600px;
   padding: 42px 48px 145px;
 }
+main.view-player {
+  max-width: none;
+}
 .top {
   display: flex;
   justify-content: space-between;
@@ -224,7 +229,7 @@ main {
 }
 .player-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(310px, 0.85fr);
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 420px);
   gap: 24px;
   align-items: start;
 }
@@ -805,9 +810,6 @@ dialog .check input {
   main {
     padding: 45px 65px 145px;
   }
-  .player-grid {
-    grid-template-columns: minmax(0, 650px) minmax(320px, 1fr);
-  }
 }
 @media (max-width: 1150px) {
   .sidebar {
@@ -902,8 +904,9 @@ dialog .check input {
     color: var(--muted);
     font-size: 11px;
     gap: 3px;
-    min-width: 80px;
-    padding: 6px 12px;
+    min-width: 0;
+    flex: 1;
+    padding: 6px 4px;
   }
   .mobile-nav button.active {
     color: var(--green);
@@ -1151,6 +1154,81 @@ a {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+.activity-day {
+  margin: 28px 0;
+}
+.activity-day > h2 {
+  font-size: 16px;
+  margin-bottom: 12px;
+}
+.activity-list {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+.activity-row {
+  display: flex;
+  gap: 20px;
+  padding: 20px 0;
+}
+.activity-row + .activity-row {
+  border-top: 1px solid var(--line);
+}
+.activity-row time {
+  flex: 0 0 44px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  padding-top: 3px;
+}
+.activity-row h3,
+.activity-row p {
+  margin: 0 0 5px;
+}
+.activity-row a {
+  color: inherit;
+  text-decoration-color: var(--muted);
+  text-underline-offset: 3px;
+}
+.activity-row a:hover {
+  color: var(--green);
+}
+.activity-label {
+  font-size: 12px;
+  color: var(--green);
+}
+.nav-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  padding: 1px 5px;
+  margin-left: 6px;
+  border-radius: 10px;
+  background: var(--green);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 900px) {
+  .mobile-nav button {
+    position: relative;
+  }
+  .mobile-nav .nav-count {
+    position: absolute;
+    top: 0;
+    left: calc(50% + 8px);
+    margin: 0;
+    min-width: 18px;
+    font-size: 10px;
+  }
+}
+.episode-row.episode-highlight {
+  background: #b9dd7a12;
+  box-shadow: inset 3px 0 var(--green);
+  padding-left: 12px;
+  border-radius: 8px;
 }
 .sleep-panel.active {
   background: #263021;

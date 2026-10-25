@@ -20,6 +20,9 @@ Beim Wechsel im bisherigen Projektverzeichnis bleiben und dasselbe Datenvolume v
 
 ## Bedienung
 
+- Freie Ansagen: `POST /api/v1/announcements` mit `{"text":"Die Waschmaschine ist fertig."}`. PlayPod bestätigt sofort mit HTTP 202 und erledigt TTS und Wiedergabe im Hintergrund. Die bestehende `TTS_AUDIO_URL` bleibt unverändert. Weitere Ansagen werden nacheinander abgespielt; Podcast und Sleep-Timer setzen erst nach der gesamten Ansagefolge fort. Statusabfragen sind optional.
+- Aktivität zeigt neue Episoden und Wiedergabeabschlüsse aus MPD und Browser mit Zeitpunkt und Direktlink zur Episode. Erstimporte werden zusammengefasst. Die Historie bleibt 90 Tage erhalten; gelöschte Episoden behalten ihren Text ohne Link. Bestehende Episoden werden beim Update nicht nachgetragen.
+- Die Zahl an „Aktivität“ zeigt ungesehene Ereignisse (bis „99+“). Beim Öffnen der Ansicht werden sie als gesehen gespeichert, getrennt pro Browser. Die Historie selbst ist geräteübergreifend.
 - Normale Wiedergabe: Timer aus; Stop nach leerer Queue.
 - Einschlafen: konfigurierte Laufzeit (initial 15 Minuten), Queue zuerst, danach Zufall aus allen oder nicht vollständig gehörten Episoden. Zufallsfolgen beginnen bei 0:00; gezielt gewählte und Queue-Folgen setzen fort.
 - UI-Pause hält die Restzeit an, Fortsetzen behält sie einschließlich Verlängerungen. Next und gezielter Episodenstart setzen die gewählte Dauer neu. „Einschlafmodus beenden“ pausiert die Wiedergabe und deaktiviert Timer/Zufall.

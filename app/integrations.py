@@ -214,7 +214,7 @@ class Notifications:
                 raise ValueError('Keine gültige Audio-URL erhalten')
             return url
         except (requests.RequestException, ValueError, AttributeError):
-            log.warning('Titel-Audiodatei nicht verfügbar; Episode startet ohne Ansage')
+            log.warning('TTS-Audiodatei nicht verfügbar')
             return None
 
     def stop(self):

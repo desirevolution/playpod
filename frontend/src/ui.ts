@@ -23,6 +23,7 @@ export const icon = (name: string) => {
     bookmark: "M6 4h12v17l-6-4-6 4Z",
     player: "M4 4h16v16H4Zm6 4 6 4-6 4Z",
     library: "M4 4v16m5-16v16m5-16v16m4-15 3 14",
+    activity: "M4 5h16M4 12h16M4 19h16M8 3v4m0 3v4m0 3v4",
     config: "M4 7h16M4 17h16M9 4v6m7 4v6",
     plus: "M12 5v14M5 12h14",
     up: "m6 14 6-6 6 6",

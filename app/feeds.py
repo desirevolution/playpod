@@ -10,6 +10,7 @@ import uuid
 import bleach
 import feedparser
 import requests
+from .activity import record
 
 log = logging.getLogger(__name__)
 AGENT = "PlayPod/2.0 (+self-hosted podcast player)"
@@ -142,6 +143,9 @@ class FeedJobs:
         with self.db.connect() as db:
             if not db.execute("SELECT 1 FROM feeds WHERE id=? AND url=?", (feed_id, url)).fetchone():
                 return 0
+            feed = db.execute('SELECT last_success FROM feeds WHERE id=?', (feed_id,)).fetchone()
+            initial = feed[0] is None and not db.execute('SELECT 1 FROM episodes WHERE feed_id=?', (feed_id,)).fetchone()
+            added = []
             for values in normalized:
                 key, guid, title_e, url_e, description, cover_e, published, duration = values
                 # A changed/introduced GUID can still refer to the same existing enclosure.
@@ -149,8 +153,13 @@ class FeedJobs:
                 if row:
                     db.execute("UPDATE episodes SET source_key=?,guid=?,title=?,url=?,description=?,cover=?,published=?,duration=CASE WHEN ?>0 THEN ? ELSE duration END WHERE id=?", (*values[:-1], duration, duration, row[0]))
                 else:
-                    db.execute("INSERT INTO episodes(feed_id,source_key,guid,title,url,description,cover,published,duration) VALUES(?,?,?,?,?,?,?,?,?)", (feed_id, *values))
+                    added.append(db.execute("INSERT INTO episodes(feed_id,source_key,guid,title,url,description,cover,published,duration) VALUES(?,?,?,?,?,?,?,?,?)", (feed_id, *values)).lastrowid)
             db.execute("UPDATE feeds SET title=?,cover=?,last_success=?,error='' WHERE id=?", (title, urljoin(base, image) if image else "", time.time(), feed_id))
+            if initial:
+                record(db, 'feed_added', feed_id=feed_id, count=len(added))
+            else:
+                for episode_id in added:
+                    record(db, 'episode_added', episode_id=episode_id)
         return len(normalized)
 
     @staticmethod

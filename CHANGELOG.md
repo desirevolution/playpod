@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Fire-and-forget text announcement API with persistent FIFO processing, shared TTS integration and uninterrupted return to MPD after the complete batch.
+- Activity timeline with 90-day retention, initial-import summaries, playback completions, episode links and per-browser unseen badges.
+- Full-width desktop player and GitHub logo link.
+- Publish Alpine only, for amd64 and arm64.
+
 ## 1.0.0
 
 First stable PlayPod release.

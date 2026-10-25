@@ -16,6 +16,7 @@ export function renderPlayer(this: PlayPodApp) {
   return html`<section aria-label=${t("Player")}>
     <div class="player-grid">
       <article class="panel">
+        ${s?.announcement_kind === "custom" ? html`<p class="notice" role="status">${t("Ansage")}: ${s.announcement_text}</p>` : nothing}
         <div class="player-hero">
           ${this.cover(e || null, true)}
           <div class="playing-meta">
@@ -23,7 +24,7 @@ export function renderPlayer(this: PlayPodApp) {
               ${e?.podcast || t("Keine Episode ausgewählt")}
             </p>
             <h2>
-              ${e?.title || (s?.announcement_kind === "mode" ? s.announcement_text : t("Keine aktive Episode"))}
+              ${e?.title || (s?.announcement_kind === "mode" || s?.announcement_kind === "custom" ? s.announcement_text : t("Keine aktive Episode"))}
             </h2>
             ${e ? html`<button class="description" data-action="details" data-id=${e.id}>${t("Beschreibung ansehen ↗")}</button>` : html`<p class="muted">${t("Wähle eine Episode im Management oder starte die Wiedergabe.")}</p>`}
             <div class="source-row">
@@ -299,7 +300,7 @@ export function mini(this: PlayPodApp) {
     >
       <strong>${s.current?.title || t("Player öffnen")}</strong
       ><span
-        >${s.phase === "announcement" ? this.announcementLabel + " · " + (s.announcement_kind === "mode" ? s.announcement_text : s.current?.podcast || "") : s.current?.podcast || t("Keine Episode ausgewählt")}</span
+        >${s.phase === "announcement" ? this.announcementLabel + " · " + (s.announcement_kind === "mode" || s.announcement_kind === "custom" ? s.announcement_text : s.current?.podcast || "") : s.current?.podcast || t("Keine Episode ausgewählt")}</span
       ></button
     >${s.state === "play" ? html`<span class="timer-state">${s.timer.enabled ? fmt(this.displayRemaining) : t("Timer aus")}</span>` : nothing}
     <button

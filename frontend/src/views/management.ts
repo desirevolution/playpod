@@ -140,7 +140,11 @@ export function renderManagement(this: PlayPodApp) {
       </div>
       ${this.episodes.map(
         (e) =>
-          html`<article class="episode-row">
+          html`<article
+            class="episode-row anchored-section ${this.highlightedEpisode === e.id ? "episode-highlight" : ""}"
+            id=${`episode-${e.id}`}
+            tabindex="-1"
+          >
             ${this.cover(e)}
             <div class="item-text">
               <p>

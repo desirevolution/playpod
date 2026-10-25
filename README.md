@@ -7,12 +7,14 @@ Self-hosted podcast player with a web interface, optional MPD playback and a sep
 ## Features
 
 - RSS subscriptions, episode search, bookmarks, playback progress and editable queues.
+- Activity timeline for new episodes and finished listening (MPD/browser), with exact episode links and a per-browser unseen counter. Events are kept for 90 days; initial feed imports are summarized.
 - Normal playback stops when the queue is empty. Optional sleep mode uses a configurable timer and random continuation: all episodes or only episodes not fully played.
 - Browser playback with its own queue/timer. MPD is optional and remains the default when configured.
 - Integrated RSS downloads, yt-dlp audio imports and read-only external media folders. Completed downloads are preferred on the next playback start.
 - German and English interface: automatic browser-language detection and a saved selection in Settings. Dates and numbers follow the chosen language. Feed titles, descriptions and third-party diagnostics retain their original language.
 - Installable PWA with shortcuts and an offline notice. Audio and the library require the server; offline audio is not included.
 - REST API, optional MQTT status and title announcements through a Node-RED/Home Assistant audio-URL endpoint.
+- Fire-and-forget text announcements via `POST /api/v1/announcements`: persistent FIFO queue, automatic TTS, suspended sleep timer and MPD resume after the complete batch.
 
 ## Start with Docker
 
@@ -36,10 +38,7 @@ Use the same project directory/name to keep the existing `playpod-data` volume. 
 
 The GitHub workflow publishes to `ghcr.io/<owner>/<repository>` using the repository's name. A stable `v1.0.0` GitHub Release produces:
 
-| Alpine (default) | Debian alternative |
-| --- | --- |
-| `1.0.0`, `1.0.0-alpine` | `1.0.0-debian` |
-| `1.0`, `1`, `latest` | `1.0-debian`, `1-debian`, `debian` |
+Published Alpine tags: `1.0.0`, `1.0.0-alpine`, `1.0`, `1`, `latest` (amd64 and arm64). Debian remains available as a local build only.
 
 Set `PLAYPOD_IMAGE` in `.env` to the desired image, then use the published image without rebuilding:
 

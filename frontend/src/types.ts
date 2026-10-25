@@ -34,7 +34,7 @@ export type Feed = {
 };
 export type PlayerState = {
   phase: "announcement" | "episode";
-  announcement_kind?: "title" | "mode" | null;
+  announcement_kind?: "title" | "mode" | "custom" | null;
   announcement_text?: string;
   state: string;
   elapsed: number;
@@ -139,4 +139,19 @@ export type DownloadStatus = {
   online: boolean;
   error: string;
   items: Download[];
+};
+export type ActivityEvent = {
+  id: number;
+  kind: "episode_added" | "feed_added" | "completed";
+  created: number;
+  episode_id: number | null;
+  feed_id: number | null;
+  title: string;
+  podcast: string;
+  count: number;
+  target: string;
+};
+export type ActivityPage = {
+  items: ActivityEvent[];
+  next_cursor: number | null;
 };
