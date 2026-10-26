@@ -1,6 +1,12 @@
 # Changelog
 
 ## Unreleased
+- Allgemeine Layoutprüfung: kompakte Einstellungsfelder, umbrechende Abschnittsköpfe und Hilfstexte mit Lesebreite; stabile Scrollleistenbreite gegen seitliches Springen.
+
+- Mini-Player: im Inhaltsbereich zentriert, maximal 1080px breit, kompakte Covergröße, Titel-Tooltip und dezente Fortschrittslinie.
+
+- Große Bildschirme: zentrierte Inhaltsbreite (Player/Bibliothek 1440px, Aktivität 1120px, Einstellungen 1040px) und feste Cover-Spalte im Desktop-Player.
+
 - Bibliothek: „Alle Podcasts“ als Auswahl, mobile Podcast-Liste mit Cover und Namen statt Dropdown; Tastaturhilfe auf Mobilgeräten ausgeblendet.
 
 

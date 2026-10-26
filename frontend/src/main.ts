@@ -1031,7 +1031,7 @@ export class PlayPodApp extends LitElement {
           </p>
         </div>
       </aside>
-      <main>
+      <main data-view=${this.view}>
         <header class="top">
           <div>
             <h1 tabindex="-1">

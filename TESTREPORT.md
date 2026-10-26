@@ -57,3 +57,20 @@ No Docker engine, GHCR publication or GitHub release was executed in this enviro
 ### Mobile Podcast-Auswahl
 
 Native aufklappbare Podcast-Liste mit Covern, Namen und Episodenzahlen; Auswahl schließt die Liste und setzt den Fokus zurück. „Alle Podcasts“ in DE/EN. Player-Tastaturhilfe bis 900px ausgeblendet. TypeScript und Produktionsbuild erfolgreich; 46 Frontend-Tests bestanden. Keine zusätzliche visuelle Geräteprüfung für diese Änderung.
+
+
+### Breite Desktop-Ansichten
+
+Inhalt neben der Navigation begrenzt und zentriert; Cover-Spalte im Desktop-Player auf 140–200px begrenzt. Äußeres 60:40-Verhältnis und mobile Breakpoints erhalten. TypeScript und Vite-Produktionsbuild erfolgreich. Keine zusätzliche visuelle Browserprüfung für diese CSS-Anpassung.
+
+
+### Mini-Player auf großen Bildschirmen
+
+Maximal 1080px, über automatische horizontale Ränder im Bereich rechts der Navigation zentriert. Mobile Abstände und Navigation bleiben erhalten. Cover 44px, Titel-Tooltip und rein visuelle Fortschrittslinie bei bekannter Dauer. TypeScript, Produktionsbuild und 46 Frontend-Tests erfolgreich; keine zusätzliche visuelle Browserprüfung.
+
+
+### Allgemeine Layoutprüfung – Einstellungen und gemeinsame Ansichten
+
+Einschlafvorgaben: Minutenfeld 160px, Auswahl maximal 420px, Speichern daneben; unter 721px einspaltig. Alte Flex-Regeln entfernt. Einstellungsüberschriften umbrechbar, Hilfstexte auf Lesebreite begrenzt, Platz für Scrollleiste stabil reserviert.
+
+Browserprüfung mit tatsächlichen Lit-Ansichten und isolierten Beispieldaten (keine produktiven Backend-/Audiocalls): Player, Bibliothek, Aktivität und Einstellungen bei 2560, 1440, 1024, 768, 390 und 320px. Alle 24 Kombinationen ohne horizontales Überlaufen. Desktop-Player 849,6px/566,4px = 60:40. Mini-Player auf Desktop 1080px, im verfügbaren Inhaltsbereich zentriert. Mobile Technik-Details bei 320px geöffnet: weiterhin kein Überlaufen. Podcast-Auswahl bei 390px geöffnet und ausgewählt: Liste schließt. Einstellungen zusätzlich auf Desktop und in einer 390px-Ansicht visuell kontrolliert. Temporäre Vorschauseiten entfernt.

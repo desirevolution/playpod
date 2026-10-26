@@ -291,9 +291,13 @@ export function queueItem(this: PlayPodApp, e: Episode, i: number) {
 }
 export function mini(this: PlayPodApp) {
   const s = this.state!;
+  const duration = s.duration || s.current?.duration || 0;
+  const progress =
+    duration > 0 ? Math.min(1, Math.max(0, this.displayElapsed / duration)) : 0;
   return html`<div class="mini-player">
     ${this.cover(s.current)}<button
       class="mini-name"
+      title=${s.current?.title || t("Player öffnen")}
       @click=${() => this.navigate("player")}
     >
       <strong>${s.current?.title || t("Player öffnen")}</strong
@@ -309,5 +313,6 @@ export function mini(this: PlayPodApp) {
     >
       ${icon(s.state === "play" ? "pause" : "play")}</button
     >${this.button("next", this.nextLabel, "next", undefined, s.state === "error" || !this.canNext)}
+    ${duration > 0 ? html`<div class="mini-progress" aria-hidden="true"><span style=${`transform: scaleX(${progress})`}></span></div>` : nothing}
   </div>`;
 }

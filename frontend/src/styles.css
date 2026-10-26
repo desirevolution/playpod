@@ -1,4 +1,5 @@
 :root {
+  scrollbar-gutter: stable;
   --bg: #181817;
   --panel: #20201e;
   --raised: #292925;
@@ -194,6 +195,17 @@ main {
   margin-left: 222px;
   max-width: none;
   padding: 42px 48px 145px;
+}
+/* Keep controls readable on wide monitors, centered beside navigation. */
+main > * {
+  max-width: 1440px;
+  margin-inline: auto;
+}
+main[data-view="config"] > * {
+  max-width: 1040px;
+}
+main[data-view="activity"] > * {
+  max-width: 1120px;
 }
 .top {
   display: flex;
@@ -640,17 +652,42 @@ input[type="text"] {
   left: 246px;
   right: 24px;
   bottom: 22px;
-  max-width: 1290px;
+  max-width: 1080px;
+  margin-inline: auto;
   background: #293027f5;
   border: 1px solid #55554c;
-  border-radius: 18px;
+  border-radius: 12px;
   backdrop-filter: blur(15px);
-  padding: 13px 18px;
+  padding: 12px 18px;
+  min-height: 70px;
   display: flex;
   align-items: center;
   gap: 16px;
   z-index: 5;
   box-shadow: 0 10px 35px #0005;
+}
+.mini-player > .art {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+}
+.mini-player > button.icon {
+  flex-shrink: 0;
+}
+.mini-progress {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 0;
+  height: 2px;
+  background: var(--line);
+  pointer-events: none;
+}
+.mini-progress > span {
+  display: block;
+  height: 100%;
+  background: var(--green);
+  transform-origin: left;
 }
 .mini-player .mini-name {
   flex: 1;
@@ -788,6 +825,7 @@ dialog .check input {
   }
   .mini-player {
     left: 200px;
+    right: 20px;
   }
   .episode-row {
     flex-wrap: wrap;
@@ -872,6 +910,7 @@ dialog .check input {
     left: 10px;
     right: 10px;
     bottom: calc(83px + env(safe-area-inset-bottom));
+    min-height: 62px;
     padding: 10px 12px;
     gap: 10px;
     border-radius: 8px;
@@ -1235,22 +1274,7 @@ a {
   transform: translateX(17px);
   background: var(--ink);
 }
-.sleep-config {
-  display: flex;
-  align-items: end;
-  gap: 16px;
-  flex-wrap: wrap;
-  margin: 16px 0;
-}
-.sleep-config label {
-  flex: 1;
-  min-width: 180px;
-}
 @media (max-width: 600px) {
-  .sleep-config label {
-    flex-basis: 100%;
-    min-width: 0;
-  }
   .target-control {
     font-size: 13px;
   }
@@ -1350,7 +1374,9 @@ select {
 }
 .sleep-config {
   display: grid;
-  grid-template-columns: minmax(140px, 1fr) minmax(230px, 2fr) auto;
+  grid-template-columns: 160px minmax(230px, 420px) auto;
+  justify-content: start;
+  margin: 16px 0;
   gap: 16px;
   align-items: end;
 }
@@ -1788,6 +1814,8 @@ select {
   padding: 0 0 24px;
 }
 .settings-section {
+  min-width: 0;
+  overflow-wrap: anywhere;
   padding: 24px 0;
   border: 0;
   border-bottom: 1px solid var(--line);
@@ -1801,6 +1829,20 @@ select {
 .settings-section > p {
   margin: 12px 0;
 }
+.settings-view .help-details p,
+.settings-view .technical-settings > p {
+  max-width: 72ch;
+}
+.settings-view .panel-head {
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+.settings-view .service {
+  gap: 16px;
+}
+.settings-view .service > :last-child {
+  text-align: right;
+}
 .settings-section > summary {
   cursor: pointer;
   font-size: 18px;
@@ -1813,13 +1855,13 @@ select {
 @media (min-width: 1200px) {
   .player-hero {
     display: grid;
-    grid-template-columns: minmax(120px, 0.7fr) minmax(0, 1fr);
+    grid-template-columns: clamp(140px, 13vw, 200px) minmax(0, 1fr);
     gap: 26px;
     align-items: center;
   }
   .player-hero .art.big {
     width: 100%;
-    max-width: 240px;
+    max-width: 200px;
     margin: 0;
     border-radius: 9px;
   }
