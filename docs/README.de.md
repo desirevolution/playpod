@@ -63,3 +63,12 @@ Einzelimporte lassen sich samt Datei entfernen; „Lokale Kopie löschen“ beh�
 Das bestätigte Löschen einer YouTube-Sammlung entfernt alle ihre Einträge und Audiodateien. Duplikate und Dateien anderer Sammlungen bleiben unabhängig erhalten. Browserseitig verwendete Dateien müssen vor einer endgültigen Löschung freigegeben werden; externe Medienverzeichnisse werden niemals gelöscht. Die Cover sind externe Vorschaubild-URLs, keine lokal gespeicherten Bilddateien.
 
 Das Datenbankschema wird auf Version 6 erweitert. Vor dem Upgrade einer vorhandenen Datenbank entsteht eine Sicherung mit der Endung `.before-v6.sqlite3`.
+
+
+### Player, Zufallswiedergabe und Timer
+
+Wiedergabestatus und der Umschalter **In diesem Browser abspielen** befinden sich direkt in der Player-Kachel. Die übrigen Ansichten zeigen diese Steuerung nicht im Seitenkopf. Ohne aktive Episode zeigt der Player eine Auswahlhilfe statt eines Buchstaben-Covers; nicht verfügbare Seek-/Sprung-/Merker-Steuerungen werden in diesem Zustand ausgeblendet.
+
+Neben der Timer-Auswahl schaltet **Zufallswiedergabe** die konfigurierte Auswahl (alle oder ungehört) ein bzw. aus. Der Schalter verändert keine Timer-Dauer und startet nicht automatisch. Mit aktivierter Zufallswiedergabe kann **Play** auch ohne aktuelle Episode starten; die Warteschlange hat weiterhin Vorrang.
+
+**Nächste** behält jetzt die verbleibende Timer-Zeit einschließlich +5-Minuten-Verlängerungen bei. Auch die Titelvorbereitung/-ansage bei manuellem „Nächste“ verbraucht diese Restzeit nicht. Ein abgelaufener Timer wird dadurch nicht neu gestartet. Ein explizites API-`timer:"default"` wählt weiterhin bewusst die volle Vorgabe. Das gezielte Starten einer einzelnen Episode und die API-Play/Toggle-Regeln bleiben unverändert.

@@ -96,7 +96,7 @@ class Player:
 
     def _timer_suspended(self):
         intro = self.saved.get('intro')
-        return bool(intro and (intro.get('kind') in ('mode', 'custom') or intro.get('restart_timer')))
+        return bool(intro and (intro.get('kind') in ('mode', 'custom') or intro.get('restart_timer') or intro.get('freeze_timer')))
 
     def state(self):
         with self.lock:
@@ -332,7 +332,7 @@ class Player:
         self.persist()
         return True
 
-    def start_episode(self, episode_id, from_start=False, *, announce=True, position_override=None, restart_timer=False):
+    def start_episode(self, episode_id, from_start=False, *, announce=True, position_override=None, restart_timer=False, freeze_timer=False):
         with self.lock:
             if self.saved.get('intro', {}).get('kind') in ('mode', 'custom'):
                 self._interrupt_announcement()
@@ -392,7 +392,7 @@ class Player:
                     timeout = getattr(getattr(self.notifications, 'settings', None), 'tts_playback_timeout_seconds', 120)
                     self.saved.update(episode_id=None, song_id=song_id, source_url=audio_url, source_kind='announcement',
                         intro={'episode_id': episode_id, 'position': position, 'source_kind': source_kind,
-                               'restart_timer': restart_timer,
+                               'restart_timer': restart_timer, 'freeze_timer': freeze_timer,
                                'url': audio_url, 'timeout_remaining': timeout, 'timeout_at': self.clock() + timeout})
                     if restart_timer:
                         self._restart_sleep_timer()
@@ -487,7 +487,7 @@ class Player:
         if status['state'] == 'play' and not expired:
             if intro['timeout_at'] is None:
                 intro['timeout_at'] = self.clock() + intro['timeout_remaining']
-            if intro.get('kind') not in ('mode', 'custom') and not intro.get('restart_timer') and self.saved['run_active'] and self.saved['timer_seconds'] and self.saved['deadline'] is None:
+            if intro.get('kind') not in ('mode', 'custom') and not intro.get('restart_timer') and not intro.get('freeze_timer') and self.saved['run_active'] and self.saved['timer_seconds'] and self.saved['deadline'] is None:
                 self.saved['deadline'] = self.clock() + self.saved['remaining']
             if self.clock() >= intro['timeout_at']:
                 if intro.get('kind') == 'custom':
@@ -540,7 +540,7 @@ class Player:
         rows = [r for r in self.db.rows(base + " ORDER BY RANDOM()", args) if r["id"] not in exclude]
         return next((e for e in rows if e["id"] != self.saved["episode_id"]), rows[0] if rows else None)
 
-    def _advance(self, natural=False, *, restart_timer=False):
+    def _advance(self, natural=False, *, restart_timer=False, freeze_timer=False):
         failures = []
         def timer_expired():
             if restart_timer or self.saved["deadline"] is None or self.remaining() > 0:
@@ -561,7 +561,7 @@ class Player:
                 failures.append(ep["id"])
                 continue
             try:
-                self.start_episode(ep["id"], restart_timer=restart_timer)
+                self.start_episode(ep["id"], restart_timer=restart_timer, freeze_timer=freeze_timer)
                 return
             except MPDUnavailable:
                 raise
@@ -577,7 +577,7 @@ class Player:
             if not ep:
                 break
             try:
-                self.start_episode(ep["id"], from_start=True, restart_timer=restart_timer)
+                self.start_episode(ep["id"], from_start=True, restart_timer=restart_timer, freeze_timer=freeze_timer)
                 return
             except MPDUnavailable:
                 raise
@@ -591,17 +591,31 @@ class Player:
         self.status["state"] = "stop"
         self.error = ""
 
+    def random_enabled(self, enabled):
+        with self.lock:
+            self.saved['when_queue_empty'] = self.sleep_defaults()['when_queue_empty'] if enabled else 'stop'
+            self.persist()
+
     def next(self):
         with self.lock:
+            if self.saved['timer_seconds'] > 0 and self.remaining() <= 0:
+                return
             if self.saved.get('intro', {}).get('kind') in ('mode', 'custom'):
                 self._interrupt_announcement()
             if self.saved.get("intro"):
-                self.saved['intro']['restart_timer'] = True
+                self.saved['intro']['restart_timer'] = False
                 self._finish_intro()
                 return
             snapshot = {"episode_id": self.saved["episode_id"], "position": self.status["elapsed"],
                         "queue": self.queue(), "playing": self.status["state"] == "play"}
-            self._advance(restart_timer=True)
+            timer_before = {key: self.saved[key] for key in ('remaining', 'deadline')}
+            self._freeze()
+            try:
+                self._advance(restart_timer=False, freeze_timer=True)
+            except Exception:
+                self.saved.update(timer_before)
+                self.persist()
+                raise
             snapshot["revision"] = self.revision
             self.undo = snapshot if snapshot["episode_id"] else None
 
@@ -626,7 +640,7 @@ class Player:
     def command(self, action, *, timer='keep', when_queue_empty='keep', episode_id=None, from_start=False):
         """Execute a remote/UI command and optional run timer under the same lock.
 
-        Manual API start/resume/Next restarts the selected period. UI resume uses
+        Manual API start/resume restarts the selected period; Next retains remaining time. UI resume uses
         timer=preserve; timer=default selects the configured sleep duration. Repeated Play while already playing remains a no-op.
         """
         with self.lock:

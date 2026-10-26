@@ -94,3 +94,14 @@ Validierung: vollständiger Backend-Lauf 289 bestanden (einschließlich echtem y
 Neun neue Backendtests prüfen Importgrenzen, keine unerwünschten Altkatalog-Nachimporte, neue Videos, Cover, Shorts/Live/private Einträge, Duplikate zwischen Sammlungen, vorsichtiges Entfernen, lokale Kopien, Ausblenden, Random-Ausschluss, idempotente Downloadabsichten, physische Löschung und MPD-Wartezustände.
 
 Browser-QA mit tatsächlichen Lit-Ansichten und isolierten Beispieldaten: Importart umgeschaltet; „Alle“ deaktiviert das Zahlenfeld; Übermittlung von Playlist mit limit:null geprüft. Desktop-Dialog und mobiler Kanalimport bei 390px visuell geprüft; kein horizontales Überlaufen (375px Client/Scroll, Dialog 339px). Temporäre QA-Seiten entfernt. Kein Live-Test öffentlicher YouTube-Playlists/-Kanäle in dieser Umgebung, keine Behauptung über deren aktuelle Erreichbarkeit. Keine Docker-/GHCR-Ausführung.
+
+
+### Player-Steuerung, Leerzustand und Timer bei „Nächste“
+
+Wiedergabestatus, Browser-Umschalter und Zielhinweis aus dem globalen Seitenkopf in die Player-Kachel verschoben. Keine wiederholte Anzeige auf Bibliothek/Aktivität/Einstellungen. Leerer Player mit Lautsprecherillustration, Auswahlhilfe und Bibliothekszugang; in diesem Zustand keine nutzlosen Seek-Zeiten, Sprung-/Undo- oder Merker-Steuerungen. Zufallsschalter neben der Timer-Auswahl verwendet die konfigurierten Zufallsvorgaben, ändert keine Dauer und startet nicht selbst. Play kann damit ohne aktuelle Episode starten. Neuer PUT /api/v1/playback/random mit value:boolean; Browser führt den Befehl lokal aus.
+
+Manuelles „Nächste“ erhält Timer-Restzeit und Verlängerungen; Titelgenerierung/-ansage beim Übergang friert diese Zeit ein. Abgelaufene Timer werden nicht durch Next neu gestartet. Explizites timer:default wählt weiterhin die volle Vorgabe. Fehlgeschlagene Übergänge stellen den bisherigen Timer wieder her. API-Play/Toggle und gezielte Episodenstarts bleiben unverändert.
+
+Validierung: vollständiger Backend-Lauf 293 bestanden; 51 Frontend-Tests bestanden; TypeScript/Vite-Build und Versionsprüfung erfolgreich. Neue/angepasste Tests prüfen leeren Random-Start mit beiden Zufallsvorgaben, Toggle ohne Autoplay/Timeränderung, Next mit Restzeit/Verlängerung/pausiertem und abgelaufenem Timer, explizite Default-Auswahl und eingefrorene Restzeit bei Titelansagen.
+
+Browser-QA mit tatsächlichen Lit-Ansichten und isolierten Daten: leerer Player an 1440,1024,768,390 und320px ohne horizontales Überlaufen geprüft, Zielsteuerung ausschließlich im Player; Wechsel zur Bibliothek zeigt keine playback-target-Elemente. Random-Schalter aktiviert Play ohne aktuelle Episode. Desktop-Darstellung visuell geprüft und Vorschau gesichert. Temporäre Testseiten entfernt. Keine echten MPD-Lautsprecher/Node-RED-Instanz in dieser Layoutprüfung.

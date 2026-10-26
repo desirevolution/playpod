@@ -1,5 +1,15 @@
 // German source messages are lookup keys; keep placeholders identical in all languages.
 export const english: Record<string, string> = {
+  "Bereit zum Abspielen": "Ready to play",
+  "Play startet die Warteschlange oder eine passende zufällige Episode.":
+    "Play starts the queue or a matching random episode.",
+  "Wähle eine Episode oder aktiviere die Zufallswiedergabe.":
+    "Choose an episode or enable random playback.",
+  Zufallswiedergabe: "Random playback",
+  An: "On",
+  "Pause und „Nächste“ behalten die verbleibende Timer-Zeit bei. Zufallswiedergabe greift, wenn die Warteschlange leer ist.":
+    "Pause and Next preserve the remaining timer. Random playback is used when the queue is empty.",
+
   Sammlungsaktionen: "Collection actions",
   "Sammlung oder Episode suchen …": "Search collection or episode \u2026",
   "Sammlung oder Episode suchen": "Search collection or episode",
@@ -391,8 +401,6 @@ export const english: Record<string, string> = {
   "30 Sekunden zurück": "Back 30 seconds",
   "30 Sekunden vor": "Forward 30 seconds",
   "Sleep-Timer": "Sleep timer",
-  "Pause hält den Timer an. „Nächste“ startet die gewählte Laufzeit neu.":
-    "Pause holds the timer. Next restarts the selected duration.",
   Einschlafen: "Sleep",
   "Queue zuerst, danach": "Queue first, then",
   "+5 Min.": "+5 min",

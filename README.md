@@ -75,7 +75,7 @@ Publishing the workflow files alone does not publish an image. See [release inst
 | `ACCESS_LOG` | `false`; HTTP access logging. Application warnings/errors remain enabled |
 | `TZ` | `Europe/Berlin` in Compose |
 
-Sleep duration (initially 15 minutes) and random selection are configured in the UI. Changing defaults does not alter a current run. UI Pause/Resume retains remaining time and extensions; Next or an explicit episode start restarts the selected duration. Ending sleep mode pauses playback and disables its timer/random continuation. After a timer has fully expired, Play starts a new period.
+Sleep duration (initially 15 minutes) and random selection are configured in the UI. Playback status and the browser destination switch live inside the Player card. The random switch beside the timer allows Play to choose an episode even with no current selection. Changing defaults does not alter a current run. UI Pause/Resume retains remaining time and extensions; Next preserves the remaining time and extensions; an explicit episode start restarts the selected duration. Ending sleep mode pauses playback and disables its timer/random continuation. After a timer has fully expired, Play starts a new period.
 
 Random selection always starts episodes at 0:00. “Not fully played” includes partially played episodes and excludes completed episodes; an empty pool stops playback. Explicit episode and queue selections resume saved progress. The queue always takes priority over random selection.
 

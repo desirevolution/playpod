@@ -54,7 +54,7 @@ def test_ui_toggle_preserves_disabled_timer(rig,body):
     assert not r.json()['timer']['enabled']
 
 
-def test_remote_episode_start_and_manual_next_restart_timer(rig):
+def test_remote_episode_start_rearms_but_manual_next_preserves_timer(rig):
     c,p,_,_,_=rig
     now=[1000.]
     p.clock=lambda:now[0]
@@ -64,7 +64,7 @@ def test_remote_episode_start_and_manual_next_restart_timer(rig):
     p.enqueue(2)
     now[0]+=30
     s=c.post('/api/v1/playback/next').json()
-    assert s['current']['id']==2 and s['timer']['remaining']==900
+    assert s['current']['id']==2 and s['timer']['remaining']==870
 
 
 def test_failed_default_start_restores_timer_configuration(rig):
@@ -191,3 +191,52 @@ def test_next_default_timer_failure_restores_previous_setting(rig):
     db.execute('DELETE FROM episodes')
     assert c.post('/api/v1/playback/next',json={'timer':'default'}).status_code==409
     assert not p.state()['timer']['enabled'] and p.saved['preset_pending']
+
+
+@pytest.mark.parametrize('selection', ['random', 'random_unheard'])
+def test_random_switch_uses_defaults_and_can_start_without_current_episode(rig, selection):
+    c, p, db, mpd, _ = rig
+    p.timer(0)
+    p.saved['when_queue_empty'] = 'stop'
+    p.persist()
+    db.put('sleep_defaults', {'minutes': 15, 'when_queue_empty': selection})
+    before = list(mpd.calls)
+    s = c.put('/api/v1/playback/random', json={'value': True}).json()
+    assert s['when_queue_empty'] == selection and s['current'] is None
+    assert s['timer']['enabled'] is False and mpd.calls == before
+    s = c.post('/api/v1/playback/play').json()
+    assert s['state'] == 'play' and s['current'] is not None
+    assert not s['timer']['enabled']
+    id_ = s['current']['id']
+    s = c.put('/api/v1/playback/random', json={'value': False}).json()
+    assert s['when_queue_empty'] == 'stop' and s['current']['id'] == id_
+    assert s['state'] == 'play'
+
+
+def test_next_preserves_extension_and_paused_remaining(rig):
+    c, p, _, _, _ = rig
+    now = [1000.]
+    p.clock = lambda: now[0]
+    p.start_episode(1, announce=False)
+    now[0] += 30
+    p.timer(extend=300)
+    p.pause()
+    remaining = p.remaining()
+    p.enqueue(2)
+    now[0] += 100
+    s = c.post('/api/v1/playback/next').json()
+    assert s['current']['id'] == 2
+    assert s['timer']['remaining'] == remaining == 1170
+
+
+def test_next_does_not_rearm_an_expired_timer(rig):
+    c, p, _, _, _ = rig
+    now = [1000.]
+    p.clock = lambda: now[0]
+    p.start_episode(1, announce=False)
+    p.enqueue(2)
+    now[0] += 901
+    s = c.post('/api/v1/playback/next').json()
+    assert s['state'] == 'pause' and s['timer']['remaining'] == 0
+    assert s['current']['id'] == 1
+    assert s['queue'][0]['id'] == 2

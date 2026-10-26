@@ -70,14 +70,14 @@ test('browser controls and queue never use MPD endpoints',async t=>{
   assert.ok(calls.every(c=>c.path.startsWith('browser/')||c.path.startsWith('episodes/')));
 });
 
-test('timer consumes playback only, seeks do not consume it, resume and manual next rearm',async t=>{
+test('timer consumes playback only, resume rearms and manual next preserves remaining time',async t=>{
   const {p,audio}=rig(t);await p.start(1);
   audio.advance(30);assert.equal(p.left,870);
   await p.command('seek','POST',{position_seconds:60});p.tick();assert.equal(p.left,870);
   p.pause();audio.advance(20);assert.equal(p.left,870);
   await p.play();assert.equal(p.left,900);
   audio.advance(10);await p.command('queue','POST',{episode_id:2});await p.next();
-  assert.equal(p.current.id,2);assert.equal(p.left,900);
+  assert.equal(p.current.id,2);assert.equal(p.left,890);
   await p.command('timer','PUT',{minutes:30});p.pause();await p.play();assert.equal(p.left,1800);
 });
 
@@ -231,4 +231,24 @@ test('failed YouTube preparation marks the queue entry and plays the next',async
   p.queue=[await request('episodes/2'),await request('episodes/3')];
   await p.next(false);failed=true;await p.refreshCurrent();
   assert.equal(p.current.id,3);assert.ok(p.queue.find(e=>e.id===2).queue_error);
+});
+
+
+test('random switch allows Play without a selected episode and does not arm a sleep timer',async t=>{
+  const {p,audio}=rig(t,{seconds:0,when_queue_empty:'stop'});await p.init();
+  assert.equal(p.current,null);
+  await p.command('playback/random','PUT',{value:true});
+  assert.equal(p.whenQueueEmpty,'random_unheard');assert.equal(p.seconds,0);assert.equal(audio.paused,true);
+  await p.play();assert.ok(p.current);assert.equal(audio.paused,false);
+  const id=p.current.id;await p.command('playback/random','PUT',{value:false});
+  assert.equal(p.whenQueueEmpty,'stop');assert.equal(p.current.id,id);assert.equal(audio.paused,false);
+});
+
+test('next preserves timer extensions while an explicit default selects a fresh period',async t=>{
+  const {p,audio}=rig(t);await p.init();await p.start(1);audio.advance(30);
+  await p.command('timer/extend','POST',{minutes:5});
+  await p.command('queue','POST',{episode_id:2});await p.command('playback/next','POST');
+  assert.equal(p.left,1170);assert.equal(p.current.id,2);
+  await p.command('queue','POST',{episode_id:3});await p.command('playback/next','POST',{timer:'default'});
+  assert.equal(p.left,900);assert.equal(p.current.id,3);
 });

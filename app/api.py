@@ -148,6 +148,10 @@ def create_app(settings=None, *, mpd=None, notifications=None, background=True):
     def state():
         return player.state()
 
+    @app.put('/api/v1/playback/random', response_model=PlayerResult)
+    def random_playback(data: ValueBool):
+        return player_command(lambda: player.random_enabled(data.value))
+
     @app.post('/api/v1/playback/{action}', response_model=PlayerResult)
     def playback(action: Literal['play', 'pause', 'toggle', 'next', 'undo', 'sleep', 'normal'], data: PlaybackInput | None = None):
         timer = data.timer if data else 'keep'

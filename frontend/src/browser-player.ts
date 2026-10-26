@@ -439,7 +439,7 @@ export class BrowserPlayer {
     // An expired run has no remaining period to resume. A new run uses the preset.
     if (this.seconds > 0 && this.left <= 0) restartTimer = true;
     if (!this.current) {
-      await this.next(restartTimer);
+      await this.next(restartTimer, restartTimer);
       return;
     }
     if (
@@ -449,7 +449,7 @@ export class BrowserPlayer {
           this.position >= this.current.duration &&
           this.current.duration > 0))
     ) {
-      await this.next(restartTimer);
+      await this.next(restartTimer, restartTimer);
       return;
     }
     if (!this.prepared || this.audio.error) {
@@ -497,8 +497,12 @@ export class BrowserPlayer {
     }
     this.save();
   }
-  async next(manual = true) {
+  async next(manual = true, restartTimer = false) {
     if (this.advancing) return;
+    if (!restartTimer && this.seconds > 0 && this.left <= 0) {
+      this.pause();
+      return;
+    }
     this.advancing = true;
     if (this.waiting && manual) {
       const entry = this.queue.find((e) => e.id === this.waiting!.id);
@@ -536,7 +540,11 @@ export class BrowserPlayer {
         ids.push(candidates[0].id);
       for (const id of ids.slice(0, 5)) {
         try {
-          const started = await this.start(id, manual, !queued.includes(id));
+          const started = await this.start(
+            id,
+            restartTimer,
+            !queued.includes(id),
+          );
           if (!started) return;
           this.undo = manual ? old : null;
           return;
@@ -622,8 +630,15 @@ export class BrowserPlayer {
     if (path === "episodes/play") {
       this.undo = null;
       await this.start(b.episode_id, true, b.from_start);
-    } else if (path === "playback/next") await this.next();
-    else if (path === "playback/undo") {
+    } else if (path === "playback/random") {
+      this.whenQueueEmpty = b.value
+        ? this.sleepDefaults.when_queue_empty
+        : "stop";
+    } else if (path === "playback/next") {
+      if (b.timer === "default")
+        this.seconds = this.left = this.sleepDefaults.minutes * 60;
+      await this.next(true, b.timer === "default");
+    } else if (path === "playback/undo") {
       if (!this.undo)
         throw new Error(t("Kein Überspringen zum Rückgängigmachen"));
       const old = this.undo;

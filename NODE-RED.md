@@ -21,7 +21,7 @@ One request starts/resumes with the configured sleep duration (initially 15 minu
 | `timer` | `default`: select configured sleep duration; omitted/`keep`: retain selected duration and restart it on manual resume/Next; `preserve`: retain remaining time on Play/Toggle, used by the UI |
 | `when_queue_empty` | omitted/`keep`: retain current policy; `default`: configured sleep choice; `stop`, `random`, `random_unheard`: explicit policy |
 
-Pause does not consume time. Automatic episode transitions preserve the remaining timer; manual Next and explicit episode starts restart the selected duration. New manual title announcements do not consume the new timer period. A disabled timer stays disabled unless explicitly selected. `timer=default` alone does not select random continuation; send both default fields for the remote-control sleep use case.
+Pause does not consume time. Automatic episode transitions preserve the remaining timer; manual Next also preserves remaining time and extensions; explicit episode starts restart the selected duration. Title announcements on manual Next freeze the remaining timer rather than resetting it. New manually selected episode announcements do not consume their new timer period. A disabled timer stays disabled unless explicitly selected. `timer=default` alone does not select random continuation; send both default fields for the remote-control sleep use case.
 
 `random_unheard` includes partially played episodes and excludes completed episodes. Both random policies start at 0:00; queued and explicitly selected episodes resume saved progress. No matching candidate means playback stops. Queue entries always take priority.
 
@@ -132,3 +132,10 @@ The UI exposes per-episode copy deletion in the action menu, per-podcast finishe
 `POST /api/v1/links` remains compatible and downloads a single link immediately. `PUT /api/v1/episodes/{id}/bookmark` with `{"value":true}` now also queues a download for a web/video episode. `POST /api/v1/queue` does likewise; existing audio RSS behavior is unchanged. `PlayerState.waiting_download` indicates a frozen pending handoff. Pause/toggle cancels this pending start without cancelling the download.
 
 `PUT /api/v1/episodes/{id}/hidden` with `{"value":true}` or false hides/unhides playlist/channel items. `GET /api/v1/episodes?filter=hidden` lists hidden items; other filters exclude them. Random candidates exclude hidden items. `DELETE /api/v1/episodes/{id}` now also removes individual link imports with their downloaded file (subscription entries cannot be manually removed). Deleting a YouTube collection using `DELETE /api/v1/feeds/{id}` deletes its entries and files. The existing legacy `DELETE /feeds/{id}/episodes` endpoint retains its prior metadata-only clearing behavior for compatibility; the UI uses collection deletion instead.
+
+
+### Random playback and Next timer behavior
+
+`PUT /api/v1/playback/random` accepts `{"value":true}` or false. Enabling selects the configured random/default selection (all or unheard); disabling sets `when_queue_empty:"stop"`. This changes only the continuation policy, without starting playback or changing the timer. A subsequent Play can start from an empty/current-less player when random is enabled. Browser mode applies the same operation locally.
+
+`POST /api/v1/playback/next` with no body or `timer:"keep"` now preserves the remaining sleep time, including extensions. It does not restart an expired timer. An explicit `timer:"default"` still deliberately selects the full configured period, including after expiry. Manual Next freezes the remainder during title preparation/announcement. API Play/Toggle retain their existing timer behavior.

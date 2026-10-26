@@ -1073,34 +1073,6 @@ export class PlayPodApp extends LitElement {
               ${{ player: t("Player"), management: t("Bibliothek"), activity: t("Aktivität"), config: t("Einstellungen") }[this.view]}
             </h1>
           </div>
-          <div class="playback-target">
-            <span class="badge playback-status"
-              >${state?.waiting_download ? t("Wartet auf Download") : state?.phase === "announcement" ? (state.state === "pause" ? this.announcementLabel + t(" pausiert") : this.announcementLabel + t(" läuft")) : state?.state === "play" ? t("Wiedergabe läuft") : state?.state === "pause" ? t("Pausiert") : t("Gestoppt")}</span
-            >
-            ${
-              this.config?.mpd_configured
-                ? html`<div class="target-control">
-                    <button
-                      type="button"
-                      class="target-switch"
-                      ?disabled=${this.pendingCommands > 0}
-                      role="switch"
-                      aria-labelledby="target-label"
-                      aria-checked=${this.target === "browser"}
-                      @click=${() => void this.perform(() => this.selectTarget(this.target === "browser" ? "mpd" : "browser"), true)}
-                    >
-                      <span class="switch-track" aria-hidden="true"
-                        ><span></span
-                      ></span>
-                      <span id="target-label"
-                        >${t("In diesem Browser abspielen")}</span
-                      >
-                    </button>
-                  </div>`
-                : html`<span class="badge">${t("Dieser Browser")}</span>`
-            }
-            ${this.config?.mpd_configured ? html`<span class="target-hint">${this.target === "browser" ? t("Eigene Queue · MPD läuft unabhängig") : "MPD"}</span>` : nothing}
-          </div>
         </header>
         ${this.connectionError ? html`<div class="error-banner" role="alert">${localizeMessage(this.connectionError)}</div>` : nothing}${state?.error ? html`<div class="error-banner" role="alert">${localizeMessage(state.error)}</div>` : nothing}${this.view === "player" ? this.renderPlayer() : this.view === "management" ? this.renderManagement() : this.view === "activity" ? renderActivity.call(this) : this.renderConfig()}
       </main>

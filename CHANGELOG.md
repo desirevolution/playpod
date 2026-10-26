@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased
+- Wiedergabestatus und Browserziel in Player-Kachel integriert; neuer leerer Zustand ohne Buchstaben-Cover. Zufallsschalter neben Timer-Auswahl mit Start aus leerem Player.
+- „Nächste“ erhält Timer-Restzeit und Verlängerungen und friert diese bei Titelansagen ein. Ein explizites API-timer:default wählt weiterhin die volle Vorgabe.
+
 - YouTube-Einzelimporte, Playlist- und Kanalabonnements mit Covern und Importgrenze/Alle; regelmäßiger Metadatenabgleich ohne Audiodownload, Shorts/Livestreams ausgeschlossen.
 - Downloads beim Anhängen/Merken, vorbereitende Wiedergabe mit eingefrorenem Timer, Ausblenden/Wiederherstellen und Entfernen von Einzelimporten bzw. Sammlungen samt Dateien. Schema 6 mit automatischer Sicherung.
 - RSS-Wiederanlauf erkennt auch den tatsächlichen Status „interrupted“ nach einem Prozessneustart.

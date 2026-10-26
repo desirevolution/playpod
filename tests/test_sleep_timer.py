@@ -35,15 +35,15 @@ def test_resume_restarts_selected_period_and_pause_does_not_count(sleep_rig,acti
 
 
 @pytest.mark.parametrize('body',[None,{'timer':'keep'},{'timer':'default'}])
-def test_manual_next_restarts_period_with_or_without_option(sleep_rig,body):
+def test_manual_next_keeps_remaining_unless_default_is_explicit(sleep_rig,body):
     c,p,_,_,_,now=sleep_rig
     p.timer(1800)
     p.enqueue(2)
     now[0]+=300
     s=c.post('/api/v1/playback/next',**({'json':body} if body is not None else {})).json()
-    period=900 if body=={'timer':'default'} else 1800
-    assert s['current']['id']==2 and s['timer']['remaining']==period
-    assert s['timer']['minutes']==period/60
+    remaining=900 if body=={'timer':'default'} else 1500
+    assert s['current']['id']==2 and s['timer']['remaining']==remaining
+    assert s['timer']['minutes']==(15 if body=={'timer':'default'} else 30)
 
 
 def test_selected_episode_start_restarts_timer_and_natural_eof_does_not(sleep_rig):
@@ -63,7 +63,7 @@ def test_selected_episode_start_restarts_timer_and_natural_eof_does_not(sleep_ri
     assert mpd.state=='pause'
 
 
-def test_manual_next_can_restart_just_before_old_deadline_during_tts_request(sleep_rig):
+def test_manual_next_freezes_remaining_during_tts_request_without_reset(sleep_rig):
     c,p,_,_,n,now=sleep_rig
     p.enqueue(2)
     now[0]+=899
@@ -73,25 +73,25 @@ def test_manual_next_can_restart_just_before_old_deadline_during_tts_request(sle
     n.title_audio=generate
     s=c.post('/api/v1/playback/next').json()
     assert s['state']=='play' and s['current']['id']==2
-    assert s['timer']['remaining']==900
+    assert s['timer']['remaining']==1
 
 
-def test_title_speech_waits_for_episode_before_starting_rearmed_timer(sleep_rig):
+def test_title_speech_freezes_remaining_before_actual_episode(sleep_rig):
     c,p,_,mpd,n,now=sleep_rig
     n.title_audio=Mock(return_value='http://ha.test/title.wav')
     p.enqueue(2)
     now[0]+=899
     s=c.post('/api/v1/playback/next').json()
-    assert s['phase']=='announcement' and s['timer']['remaining']==900
+    assert s['phase']=='announcement' and s['timer']['remaining']==1
     assert s['timer']['suspended']
     now[0]+=3
     p.sync()
-    assert p.remaining()==900 and mpd.state=='play'
+    assert p.remaining()==1 and mpd.state=='play'
     mpd.state='stop';mpd.elapsed=0
     p.sync()
-    assert p.saved['episode_id']==2 and p.remaining()==900
-    now[0]+=10
-    assert p.remaining()==890
+    assert p.saved['episode_id']==2 and p.remaining()==1
+    now[0]+=.5
+    assert p.remaining()==.5
 
 
 def test_resume_during_existing_title_rearms_timer_without_consuming_speech(sleep_rig):

@@ -16,20 +16,39 @@ export function renderPlayer(this: PlayPodApp) {
   }
   return html`<section aria-label=${t("Player")}>
     <div class="player-grid">
-      <article class="panel player-main">
+      <article class="panel player-main ${e ? "" : "is-empty"}">
+        ${playbackTarget.call(this)}
         ${s?.waiting_download ? html`<p class="notice" role="status">${t("Download wird vorbereitet. Wiedergabe und Sleep-Timer warten.")}</p>` : nothing}
         ${s?.announcement_kind === "custom" ? html`<p class="notice" role="status">${t("Ansage")}: ${s.announcement_text}</p>` : nothing}
-        <div class="player-hero">
-          ${this.cover(e || null, true)}
+        <div class="player-hero ${e ? "" : "is-empty"}">
+          ${e ? this.cover(e, true) : html`<div class="empty-player-art" aria-hidden="true">${icon("speaker")}</div>`}
           <div class="player-body">
             <div class="playing-meta">
               <p class="eyebrow">
                 ${e?.podcast || t("Keine Episode ausgewählt")}
               </p>
               <h2>
-                ${e?.title || (s?.announcement_kind === "mode" || s?.announcement_kind === "custom" ? s.announcement_text : t("Keine aktive Episode"))}
+                ${e?.title || (s?.announcement_kind === "mode" || s?.announcement_kind === "custom" ? s.announcement_text : t("Bereit zum Abspielen"))}
               </h2>
-              ${e ? html`<button class="description" data-action="details" data-id=${e.id}>${t("Beschreibung ansehen ↗")}</button>` : html`<p class="muted">${t("Wähle eine Episode in der Bibliothek.")}</p>`}
+              ${
+                e
+                  ? html`<button
+                      class="description"
+                      data-action="details"
+                      data-id=${e.id}
+                    >
+                      ${t("Beschreibung ansehen ↗")}
+                    </button>`
+                  : html`<p class="muted empty-player-hint">
+                        ${s && s.when_queue_empty !== "stop" ? t("Play startet die Warteschlange oder eine passende zufällige Episode.") : t("Wähle eine Episode oder aktiviere die Zufallswiedergabe.")}
+                      </p>
+                      <button
+                        class="ghost small"
+                        @click=${() => this.navigate("management")}
+                      >
+                        ${t("Episoden auswählen")}
+                      </button>`
+              }
             </div>
             <div class="progress">
               <input
@@ -133,22 +152,52 @@ export function renderPlayer(this: PlayPodApp) {
               >
             </div>
           </div>
-          <div class="option">
-            <label for="timer">${t("Sleep-Timer")}</label
-            ><select
-              id="timer"
-              ?disabled=${this.busy}
-              @change=${(ev: Event) => {
-                const minutes = Number((ev.target as HTMLSelectElement).value);
-                void this.perform(async () => {
-                  this.state = await this.api("timer", "PUT", {
-                    minutes,
-                  });
-                }, true);
-              }}
-            >
-              ${timerPresets.map((v) => html`<option value=${v} .selected=${live((s?.timer.minutes || 0) === v)}>${v ? v + t(" Minuten") : t("Aus")}</option>`)}
-            </select>
+          <div class="option timer-option">
+            <div class="timer-settings">
+              <div>
+                <label for="timer">${t("Sleep-Timer")}</label
+                ><select
+                  id="timer"
+                  ?disabled=${this.busy}
+                  @change=${(ev: Event) => {
+                    const minutes = Number(
+                      (ev.target as HTMLSelectElement).value,
+                    );
+                    void this.perform(async () => {
+                      this.state = await this.api("timer", "PUT", {
+                        minutes,
+                      });
+                    }, true);
+                  }}
+                >
+                  ${timerPresets.map((v) => html`<option value=${v} .selected=${live((s?.timer.minutes || 0) === v)}>${v ? v + t(" Minuten") : t("Aus")}</option>`)}
+                </select>
+              </div>
+              <div class="random-option">
+                <span class="option-label" id="random-label"
+                  >${t("Zufallswiedergabe")}</span
+                ><button
+                  type="button"
+                  class="target-switch random-switch"
+                  role="switch"
+                  aria-labelledby="random-label"
+                  aria-checked=${!!s && s.when_queue_empty !== "stop"}
+                  ?disabled=${!s || this.busy}
+                  @click=${() =>
+                    void this.perform(async () => {
+                      this.state = await this.api("playback/random", "PUT", {
+                        value: s?.when_queue_empty === "stop",
+                      });
+                    }, true)}
+                >
+                  <span class="switch-track" aria-hidden="true"
+                    ><span></span></span
+                  ><span
+                    >${s && s.when_queue_empty !== "stop" ? t("An") : t("Aus")}</span
+                  >
+                </button>
+              </div>
+            </div>
             ${
               s?.state === "play" && s.timer.enabled
                 ? html`<div class="timer-line">
@@ -166,7 +215,7 @@ export function renderPlayer(this: PlayPodApp) {
             <details class="help-details">
               <summary>${t("Timer-Hinweise")}</summary>
               <p class="muted small">
-                ${t("Pause hält den Timer an. „Nächste“ startet die gewählte Laufzeit neu.")}
+                ${t("Pause und „Nächste“ behalten die verbleibende Timer-Zeit bei. Zufallswiedergabe greift, wenn die Warteschlange leer ist.")}
               </p>
             </details>
           </div>
@@ -317,5 +366,33 @@ export function mini(this: PlayPodApp) {
       ${icon(s.state === "play" ? "pause" : "play")}</button
     >${this.button("next", this.nextLabel, "next", undefined, s.state === "error" || !this.canNext)}
     ${duration > 0 ? html`<div class="mini-progress" aria-hidden="true"><span style=${`transform: scaleX(${progress})`}></span></div>` : nothing}
+  </div>`;
+}
+
+function playbackTarget(this: PlayPodApp) {
+  const state = this.state;
+  return html`<div class="playback-target">
+    <span class="badge playback-status"
+      >${state?.waiting_download ? t("Wartet auf Download") : state?.phase === "announcement" ? (state.state === "pause" ? this.announcementLabel + t(" pausiert") : this.announcementLabel + t(" läuft")) : state?.state === "play" ? t("Wiedergabe läuft") : state?.state === "pause" ? t("Pausiert") : t("Gestoppt")}</span
+    >
+    ${
+      this.config?.mpd_configured
+        ? html`<div class="target-control">
+            <button
+              type="button"
+              class="target-switch"
+              ?disabled=${this.pendingCommands > 0}
+              role="switch"
+              aria-labelledby="target-label"
+              aria-checked=${this.target === "browser"}
+              @click=${() => void this.perform(() => this.selectTarget(this.target === "browser" ? "mpd" : "browser"), true)}
+            >
+              <span class="switch-track" aria-hidden="true"><span></span></span>
+              <span id="target-label">${t("In diesem Browser abspielen")}</span>
+            </button>
+          </div>`
+        : html`<span class="badge">${t("Dieser Browser")}</span>`
+    }
+    ${this.config?.mpd_configured ? html`<span class="target-hint">${this.target === "browser" ? t("Eigene Queue · MPD läuft unabhängig") : "MPD"}</span>` : nothing}
   </div>`;
 }
