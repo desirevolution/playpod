@@ -1,5 +1,46 @@
 // German source messages are lookup keys; keep placeholders identical in all languages.
 export const english: Record<string, string> = {
+  Sammlungsaktionen: "Collection actions",
+  "Sammlung oder Episode suchen …": "Search collection or episode \u2026",
+  "Sammlung oder Episode suchen": "Search collection or episode",
+
+  "Download fehlgeschlagen oder abgebrochen": "Download failed or cancelled",
+  "Manuell übersprungen": "Skipped manually",
+  "Wartet auf Download": "Waiting for download",
+  "Download wird vorbereitet. Wiedergabe und Sleep-Timer warten.":
+    "Preparing download. Playback and the sleep timer are waiting.",
+  "Import entfernen?": "Remove import?",
+  "Eintrag und heruntergeladene Audiodatei endgültig löschen?":
+    "Permanently delete this entry and its downloaded audio file?",
+  "Sammlung endgültig löschen?": "Permanently delete collection?",
+  "„{title}“ mit allen Einträgen und heruntergeladenen Audiodateien endgültig löschen?":
+    "Permanently delete “{title}”, all its entries and downloaded audio files?",
+  "YouTube importieren": "Import YouTube",
+  "Sammlung hinzugefügt. Einträge werden ohne Download eingelesen.":
+    "Collection added. Entries are imported without downloading audio.",
+  "Einzelimporte werden direkt heruntergeladen. Playlists und Kanäle werden regelmäßig ohne Audiodownload eingelesen. Shorts und Livestreams werden ausgeschlossen.":
+    "Single imports are downloaded immediately. Playlists and channels are checked regularly without downloading audio. Shorts and livestreams are excluded.",
+  Importart: "Import type",
+  "Einzelnes Video": "Single video",
+  "YouTube-Playlist": "YouTube playlist",
+  "YouTube-Kanal": "YouTube channel",
+  "Alle vorhandenen Videos einlesen": "Import all existing videos",
+  "Anzahl beim ersten Import": "Number for initial import",
+  "Beim Kanal werden die neuesten Videos gewählt, bei Playlists die ersten Einträge in Playlist-Reihenfolge. Spätere neue Videos werden ergänzt.":
+    "Channels import the latest videos; playlists import their first entries in playlist order. New videos are added on subsequent checks.",
+  "Sammlung hinzufügen": "Add collection",
+  "Alle Sammlungen": "All collections",
+  "Sammlung auswählen": "Select collection",
+  Sammlungen: "Collections",
+  Ausgeblendet: "Hidden",
+  "Import entfernen": "Remove import",
+  "Wieder einblenden": "Unhide",
+  Ausblenden: "Hide",
+  "Sammlung löschen": "Delete collection",
+  "YT-Playlist": "YT playlist",
+  "YT-Kanal": "YT channel",
+  Einzelimporte: "Single imports",
+
   Import: "Import",
   Podcast: "Podcast",
   Filter: "Filter",

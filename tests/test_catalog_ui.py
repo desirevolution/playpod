@@ -50,7 +50,7 @@ def test_import_label_upgrade_keeps_identity_favorite_and_custom_name(rig):
     from app.downloads import Downloads
     _,_,db,_,_=rig
     id_=db.execute("INSERT INTO feeds(url,title,kind,favorite) VALUES('playpod-links://manual','Einzelne Links','links',1)")
-    for old,expected in [('Einzelne Links','YT-Importe'),('Linkimporte','YT-Importe'),('Eigene Auswahl','Eigene Auswahl')]:
+    for old,expected in [('Einzelne Links','YouTube · Einzelimporte'),('Linkimporte','YouTube · Einzelimporte'),('Eigene Auswahl','Eigene Auswahl')]:
         db.execute('UPDATE feeds SET title=? WHERE id=?',(old,id_))
         d=Downloads(db,Settings(database=db.path))
         assert db.one('SELECT id,title,favorite FROM feeds WHERE id=?',(id_,))=={'id':id_,'title':expected,'favorite':1}

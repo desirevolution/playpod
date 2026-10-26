@@ -33,6 +33,8 @@ import "./styles.css";
 
 export class PlayPodApp extends LitElement {
   static properties = {
+    linkKind: { state: true },
+    linkAll: { state: true },
     state: { state: true },
     target: { state: true },
     savingSleep: { state: true },
@@ -64,6 +66,8 @@ export class PlayPodApp extends LitElement {
     highlightedEpisode: { state: true },
     activityUnseen: { state: true },
   };
+  linkKind = "single";
+  linkAll = false;
   state: PlayerState | null = null;
   target: "mpd" | "browser" | null = null;
   browser: BrowserPlayer | null = null;
@@ -332,11 +336,13 @@ export class PlayPodApp extends LitElement {
       });
       if (!r.ok) {
         let detail = t("Anfrage fehlgeschlagen");
+        let code = "";
         try {
           const d = await r.json();
           if (typeof d.error?.message === "string") detail = d.error.message;
+          code = d.error?.code || "";
         } catch {}
-        throw Object.assign(new Error(detail), { status: r.status });
+        throw Object.assign(new Error(detail), { status: r.status, code });
       }
       const result = await r.json();
       if (method !== "GET" && result && typeof result === "object")
@@ -508,13 +514,16 @@ export class PlayPodApp extends LitElement {
     try {
       const locationInfo =
         target.kind === "episodes"
-          ? await this.rawApi<{ feed_id: number; offset: number }>(
-              `episodes/${target.id}/location`,
-            )
+          ? await this.rawApi<{
+              feed_id: number;
+              offset: number;
+              hidden?: boolean;
+            }>(`episodes/${target.id}/location`)
           : { feed_id: target.id, offset: 0 };
       if (seq !== this.routeSequence || this.view !== "management") return;
       this.query = "";
-      this.filter = "all";
+      this.filter =
+        "hidden" in locationInfo && locationInfo.hidden ? "hidden" : "all";
       this.feedFilter = locationInfo.feed_id;
       this.offset = locationInfo.offset;
       this.highlightedEpisode = target.kind === "episodes" ? target.id : null;
@@ -772,7 +781,28 @@ export class PlayPodApp extends LitElement {
     const action = b.dataset.action!,
       id = Number(b.dataset.id) || undefined;
     if (action === "link-add") {
+      this.linkKind = "single";
+      this.linkAll = false;
       void this.open({ kind: "link" });
+      return;
+    }
+    if (action === "import-remove") {
+      this.confirm(
+        t("Import entfernen?"),
+        t("Eintrag und heruntergeladene Audiodatei endgültig löschen?"),
+        async () => {
+          await this.api(`episodes/${id}`, "DELETE");
+          this.close();
+        },
+      );
+      return;
+    }
+    if (action === "hide-episode") {
+      const ep = this.episodes.find((e) => e.id === id);
+      void this.perform(async () => {
+        await this.api(`episodes/${id}/hidden`, "PUT", { value: !ep?.hidden });
+        await this.loadManagement();
+      });
       return;
     }
     if (action === "download-delete") {
@@ -914,11 +944,16 @@ export class PlayPodApp extends LitElement {
       const f = this.feeds.find((f) => f.id === id);
       if (f)
         this.confirm(
-          t("Podcast endgültig löschen?"),
-          t(
-            "„{title}“ samt Episoden, Merkern und Warteschlangeneinträgen löschen? Eine zugehörige Wiedergabe stoppt. Heruntergeladene Audiodateien bleiben bis zum Aufräumen verwaister Dateien erhalten.",
-            { title: f.title },
-          ),
+          t("Sammlung endgültig löschen?"),
+          f.kind === "links" || f.kind.startsWith("yt_")
+            ? t(
+                "„{title}“ mit allen Einträgen und heruntergeladenen Audiodateien endgültig löschen?",
+                { title: f.title },
+              )
+            : t(
+                "„{title}“ samt Episoden, Merkern und Warteschlangeneinträgen löschen? Eine zugehörige Wiedergabe stoppt. Heruntergeladene Audiodateien bleiben bis zum Aufräumen verwaister Dateien erhalten.",
+                { title: f.title },
+              ),
           async () => {
             await this.api("feeds/" + id, "DELETE");
             if (this.feedFilter === id) this.feedFilter = null;
@@ -1040,7 +1075,7 @@ export class PlayPodApp extends LitElement {
           </div>
           <div class="playback-target">
             <span class="badge playback-status"
-              >${state?.phase === "announcement" ? (state.state === "pause" ? this.announcementLabel + t(" pausiert") : this.announcementLabel + t(" läuft")) : state?.state === "play" ? t("Wiedergabe läuft") : state?.state === "pause" ? t("Pausiert") : t("Gestoppt")}</span
+              >${state?.waiting_download ? t("Wartet auf Download") : state?.phase === "announcement" ? (state.state === "pause" ? this.announcementLabel + t(" pausiert") : this.announcementLabel + t(" läuft")) : state?.state === "play" ? t("Wiedergabe läuft") : state?.state === "pause" ? t("Pausiert") : t("Gestoppt")}</span
             >
             ${
               this.config?.mpd_configured

@@ -189,3 +189,46 @@ test('UI resume after timer expiry starts a new period',async t=>{
   await p.command('playback/toggle','POST',{timer:'preserve'});
   assert.equal(audio.paused,false);assert.equal(p.left,10);
 });
+
+test('YouTube enqueue downloads once and waits without consuming sleep time',async t=>{
+  const {p,audio,request}=rig(t);await p.init();
+  let ready=false,downloads=0;
+  p.request=async(path,method,body)=>{
+    if(path==='episodes/2/download'){downloads++;return {state:'queued'};}
+    if(path==='episodes/2')return {...await request(path,method,body),source_type:'web'};
+    if(path==='browser/episodes/2/source'&&!ready)throw Object.assign(new Error('pending'),{code:'download_pending',status:409});
+    return request(path,method,body);
+  };
+  await p.start(1);audio.advance(12);
+  await p.command('queue','POST',{episode_id:2});
+  await p.command('queue','POST',{episode_id:2});
+  assert.equal(downloads,1);
+  await p.next(false);
+  assert.equal(p.waiting.id,2);assert.equal(audio.paused,true);
+  const left=p.left;audio.advance(30);assert.equal(p.left,left);
+  ready=true;await p.refreshCurrent();
+  assert.equal(p.waiting,null);assert.equal(p.current.id,2);
+  assert.equal(p.queue.length,0);assert.equal(p.left,left);assert.equal(audio.paused,false);
+});
+
+test('pausing a pending YouTube handoff prevents delayed autoplay',async t=>{
+  const {p,audio,request}=rig(t);await p.init();let ready=false;
+  p.request=async(path,method,body)=>{
+    if(path==='browser/episodes/2/source'&&!ready)throw Object.assign(new Error('pending'),{code:'download_pending'});
+    return request(path,method,body);
+  };
+  p.queue=[await request('episodes/2')];await p.next(false);
+  assert.ok(p.waiting);p.pause();ready=true;await p.refreshCurrent();
+  assert.equal(p.waiting,null);assert.equal(audio.paused,true);assert.equal(p.queue.length,1);
+});
+
+test('failed YouTube preparation marks the queue entry and plays the next',async t=>{
+  const {p,request}=rig(t);await p.init();let failed=false;
+  p.request=async(path,method,body)=>{
+    if(path==='browser/episodes/2/source')throw Object.assign(new Error(failed?'failed':'pending'),{code:failed?'state_conflict':'download_pending'});
+    return request(path,method,body);
+  };
+  p.queue=[await request('episodes/2'),await request('episodes/3')];
+  await p.next(false);failed=true;await p.refreshCurrent();
+  assert.equal(p.current.id,3);assert.ok(p.queue.find(e=>e.id===2).queue_error);
+});

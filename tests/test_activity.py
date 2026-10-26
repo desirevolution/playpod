@@ -131,7 +131,7 @@ def test_v4_upgrade_backs_up_and_preserves_catalog_without_backfill(tmp_path):
     db.execute('DELETE FROM schema_migrations WHERE version=5')
     db.execute('PRAGMA user_version=4')
     restored = Database(path)
-    assert restored.one('PRAGMA user_version')['user_version'] == 5
+    assert restored.one('PRAGMA user_version')['user_version'] == 6
     assert restored.one('SELECT position FROM episodes')['position'] == 123
     assert restored.rows('SELECT * FROM activity') == []
     with sqlite3.connect(str(path)+'.before-v5.sqlite3') as backup:

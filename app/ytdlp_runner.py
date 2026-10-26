@@ -46,7 +46,7 @@ def run(url, directory, max_bytes):
         def run(self, info):
             emit('ready', path=info['filepath'], title=str(info.get('title') or '')[:1000],
                  description=str(info.get('description') or '')[:20000],
-                 duration=info.get('duration'))
+                 duration=info.get('duration'), thumbnail=info.get('thumbnail') or '')
             return [], info
 
     options = {
@@ -64,15 +64,42 @@ def run(url, directory, max_bytes):
         info = ydl.extract_info(url, download=False)
         if not info or info.get('_type') in ('playlist', 'multi_video') or info.get('entries') is not None:
             raise ValueError('Bitte einen einzelnen Episoden-/Videolink statt einer Playlist oder eines Kanals angeben')
-        if info.get('is_live'):
-            raise ValueError('Laufende Livestreams werden nicht heruntergeladen')
+        if info.get('is_live') or info.get('live_status') == 'is_upcoming' or info.get('media_type') in ('short', 'livestream'):
+            raise ValueError('Shorts und Livestreams werden nicht importiert')
         ydl.add_post_processor(Completed(), when='after_move')
         ydl.process_ie_result(info, download=True)
 
 
+def catalog(url):
+    from yt_dlp import YoutubeDL
+    # Flat extraction reads catalog metadata/thumbnails without audio or per-video formats.
+    options = {'quiet': True, 'skip_download': True, 'extract_flat': True,
+               'ignoreerrors': False, 'cachedir': False, 'socket_timeout': 20,
+               'retries': 2, 'js_runtimes': javascript_options()}
+    with YoutubeDL(options) as ydl:
+        info = ydl.extract_info(url, download=False)
+        if not info or info.get('_type') not in ('playlist', 'multi_video'):
+            raise ValueError('Bitte eine YouTube-Playlist oder einen Kanal angeben')
+        entries = []
+        for item in info.get('entries') or []:
+            if not item:
+                raise ValueError('YouTube-Sammlung konnte nicht vollständig gelesen werden')
+            # Channel roots can produce nested tab playlists: /videos is normalized by caller.
+            if item.get('entries') is not None:
+                raise ValueError('Bitte den Videos-Bereich des Kanals verwenden')
+            entries.append({key: item.get(key) for key in
+                ('id','url','webpage_url','title','duration','timestamp','release_timestamp',
+                 'thumbnails','thumbnail','live_status','is_live','was_live','media_type','availability')})
+        emit('catalog', title=info.get('title') or url,
+             thumbnails=info.get('thumbnails') or [], thumbnail=info.get('thumbnail') or '', entries=entries)
+
+
 if __name__ == '__main__':
     try:
-        run(sys.argv[1], sys.argv[2], int(sys.argv[3]))
+        if sys.argv[1] == '--catalog':
+            catalog(sys.argv[2])
+        else:
+            run(sys.argv[1], sys.argv[2], int(sys.argv[3]))
     except Exception as exc:
         emit('error', error=str(exc)[:1000] or 'yt-dlp konnte den Link nicht herunterladen')
         sys.exit(1)

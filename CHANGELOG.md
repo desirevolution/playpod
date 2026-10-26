@@ -1,6 +1,10 @@
 # Changelog
 
 ## Unreleased
+- YouTube-Einzelimporte, Playlist- und Kanalabonnements mit Covern und Importgrenze/Alle; regelmäßiger Metadatenabgleich ohne Audiodownload, Shorts/Livestreams ausgeschlossen.
+- Downloads beim Anhängen/Merken, vorbereitende Wiedergabe mit eingefrorenem Timer, Ausblenden/Wiederherstellen und Entfernen von Einzelimporten bzw. Sammlungen samt Dateien. Schema 6 mit automatischer Sicherung.
+- RSS-Wiederanlauf erkennt auch den tatsächlichen Status „interrupted“ nach einem Prozessneustart.
+
 - Automatische RSS-Aktualisierung berücksichtigt den gespeicherten letzten Gesamtlauf statt nach jedem Neustart erneut das ganze Intervall abzuwarten. Überfällige Läufe werden beim Start nachgeholt; temporäre Schedulerfehler werden protokolliert und erneut versucht. Nächster Termin und Schedulerstatus in den Einstellungen.
 
 - Allgemeine Layoutprüfung: kompakte Einstellungsfelder, umbrechende Abschnittsköpfe und Hilfstexte mit Lesebreite; stabile Scrollleistenbreite gegen seitliches Springen.

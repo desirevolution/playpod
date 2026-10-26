@@ -16,7 +16,7 @@ export function renderDialog(this: PlayPodApp) {
   >
     <div class="row spread" style="margin:0 0 15px">
       <h2 id="dialog-title" style="margin:0">
-        ${d?.kind === "link" ? t("Video-/Audiolink hinzufügen") : d?.kind === "details" ? e?.title : d?.kind === "feed" ? (d.feed ? t("Podcast bearbeiten") : t("Podcast hinzufügen")) : d?.kind === "cleanup" ? t("Nicht erreichbare Episoden") : d?.title}
+        ${d?.kind === "link" ? t("YouTube importieren") : d?.kind === "details" ? e?.title : d?.kind === "feed" ? (d.feed ? t("Podcast bearbeiten") : t("Podcast hinzufügen")) : d?.kind === "cleanup" ? t("Nicht erreichbare Episoden") : d?.title}
       </h2>
       <button
         class="icon ghost"
@@ -248,25 +248,74 @@ function linkForm(this: PlayPodApp) {
       event.preventDefault();
       const data = new FormData(event.currentTarget as HTMLFormElement);
       void this.perform(async () => {
-        await this.api("links", "POST", { url: String(data.get("url")) });
+        if (this.linkKind === "single") {
+          await this.api("links", "POST", { url: String(data.get("url")) });
+          this.notify(t("Link hinzugefügt. Audiospur wird heruntergeladen."));
+        } else {
+          await this.api("youtube/collections", "POST", {
+            url: String(data.get("url")),
+            kind: this.linkKind,
+            limit: this.linkAll ? null : Number(data.get("limit")),
+          });
+          this.notify(
+            t(
+              "Sammlung hinzugefügt. Einträge werden ohne Download eingelesen.",
+            ),
+          );
+        }
         this.close();
-        this.notify(t("Link hinzugefügt. Audiospur wird heruntergeladen."));
       });
     }}
   >
     <p class="muted small">
-      ${t("Einzelnes YouTube-Video oder ein Video-/Audiolink einer weiteren von yt-dlp unterstützten Seite. Importiert wird ausschließlich die Audiospur, kein Video. Die Einträge erscheinen unter „YT-Importe“. Playlists, Kanäle und laufende Livestreams werden nicht importiert.")}
+      ${t("Einzelimporte werden direkt heruntergeladen. Playlists und Kanäle werden regelmäßig ohne Audiodownload eingelesen. Shorts und Livestreams werden ausgeschlossen.")}
     </p>
+    <label
+      >${t("Importart")}<select
+        .value=${this.linkKind}
+        @change=${(ev: Event) => (this.linkKind = (ev.target as HTMLSelectElement).value)}
+      >
+        <option value="single">${t("Einzelnes Video")}</option>
+        <option value="yt_playlist">${t("YouTube-Playlist")}</option>
+        <option value="yt_channel">${t("YouTube-Kanal")}</option>
+      </select></label
+    >
+    ${
+      this.linkKind !== "single"
+        ? html`
+            <label class="check"
+              ><input
+                type="checkbox"
+                .checked=${this.linkAll}
+                @change=${(ev: Event) => (this.linkAll = (ev.target as HTMLInputElement).checked)}
+              />${t("Alle vorhandenen Videos einlesen")}</label
+            >
+            <label
+              >${t("Anzahl beim ersten Import")}<input
+                name="limit"
+                type="number"
+                min="1"
+                max="100000"
+                value="50"
+                ?required=${!this.linkAll}
+                ?disabled=${this.linkAll}
+            /></label>
+            <p class="muted small">
+              ${t("Beim Kanal werden die neuesten Videos gewählt, bei Playlists die ersten Einträge in Playlist-Reihenfolge. Spätere neue Videos werden ergänzt.")}
+            </p>
+          `
+        : nothing
+    }
     <label
       >${t("Video-/Audio-URL")}<input
         name="url"
         type="url"
         required
         maxlength="4000"
-        placeholder="https://www.youtube.com/watch?v=…"
+        placeholder=${this.linkKind === "yt_playlist" ? "https://www.youtube.com/playlist?list=…" : this.linkKind === "yt_channel" ? "https://www.youtube.com/@kanal" : "https://www.youtube.com/watch?v=…"}
     /></label>
     <button class="primary" type="submit" ?disabled=${this.busy}>
-      ${t("Hinzufügen und herunterladen")}
+      ${this.linkKind === "single" ? t("Hinzufügen und herunterladen") : t("Sammlung hinzufügen")}
     </button>
   </form>`;
 }

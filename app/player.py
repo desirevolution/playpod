@@ -78,7 +78,7 @@ class Player:
         return min(duration, elapsed) if duration else elapsed
 
     def episode(self, episode_id):
-        row = self.db.one("SELECT e.*,f.title AS podcast,f.favorite,f.cover AS feed_cover FROM episodes e JOIN feeds f ON f.id=e.feed_id WHERE e.id=?", (episode_id,))
+        row = self.db.one("SELECT e.*,f.title AS podcast,f.favorite,f.cover AS feed_cover,f.kind AS feed_kind FROM episodes e JOIN feeds f ON f.id=e.feed_id WHERE e.id=?", (episode_id,))
         if not row:
             raise PlayerError("Episode nicht gefunden", code='not_found', status_code=404)
         return row
@@ -102,7 +102,8 @@ class Player:
         with self.lock:
             ep = None
             intro = self.saved.get("intro")
-            current_id = intro["episode_id"] if intro else self.saved["episode_id"]
+            waiting = self.saved.get('waiting_download')
+            current_id = waiting['episode_id'] if waiting else intro["episode_id"] if intro else self.saved["episode_id"]
             if current_id:
                 try:
                     ep = self.episode(current_id)
@@ -112,8 +113,9 @@ class Player:
             return {**self.status, "phase": "announcement" if intro else "episode",
                     "announcement_kind": intro.get('kind', 'title') if intro else None,
                     "announcement_text": intro.get('text', ep['title'] if ep else '') if intro else '',
-                    "elapsed": intro["position"] if intro else self._elapsed(),
-                    "duration": ep["duration"] if intro and ep else intro.get('display_duration', 0) if restorable_announcement else self.status["duration"],
+                    "waiting_download": bool(waiting),
+                    "elapsed": 0 if waiting else intro["position"] if intro else self._elapsed(),
+                    "duration": ep["duration"] if (intro or waiting) and ep else intro.get('display_duration', 0) if restorable_announcement else self.status["duration"],
                     "current": ep, "queue": self.queue(), "revision": self.revision,
                     "source_kind": intro["source_kind"] if intro else self.saved.get("source_kind", "remote"),
                     "favorites_only": self.mode, "error": self.error,
@@ -132,7 +134,9 @@ class Player:
 
     def enqueue(self, episode_id):
         with self.lock:
-            self.episode(episode_id)
+            ep = self.episode(episode_id)
+            if ep['source_type'] == 'web' and self.media and self.media.downloads:
+                self.media.downloads.start_download(ep)
             if self.db.one("SELECT 1 FROM queue WHERE episode_id=?", (episode_id,)):
                 return False
             self.db.execute("INSERT INTO queue(episode_id,rank) VALUES(?,(SELECT COALESCE(MAX(rank),0)+1 FROM queue))", (episode_id,))
@@ -152,6 +156,9 @@ class Player:
 
     def remove(self, episode_id=None):
         with self.lock:
+            if self.saved.get('waiting_download', {}).get('episode_id') == episode_id or episode_id is None:
+                self.saved.pop('waiting_download', None)
+                self.persist()
             if episode_id is None:
                 self.db.execute("DELETE FROM queue")
             else:
@@ -160,6 +167,9 @@ class Player:
 
     def retry(self, episode_id):
         with self.lock:
+            ep = self.episode(episode_id)
+            if ep['source_type'] == 'web' and self.media and self.media.downloads:
+                self.media.downloads.start_download(ep)
             self.db.execute("UPDATE queue SET error='' WHERE episode_id=?", (episode_id,))
             self._queue_changed()
 
@@ -225,6 +235,8 @@ class Player:
         with self.lock:
             try:
                 status, song = self._read()
+                if self._sync_download(status, song):
+                    return
                 if self.saved.get("intro") and self._sync_intro(status, song):
                     self.notifications.publish(self.status["state"])
                     return
@@ -291,12 +303,55 @@ class Player:
                 log.warning("MPD-Abgleich oder Wiedergabeübergang fehlgeschlagen", exc_info=True)
             self.notifications.publish(self.status["state"])
 
+    def _sync_download(self, status, song):
+        waiting = self.saved.get('waiting_download')
+        if not waiting:
+            return False
+        # An external/manual resume wins over the pending automatic handoff.
+        if status['state'] == 'play':
+            self.saved.pop('waiting_download', None)
+            self.persist()
+            return False
+        self.status, self.last_song = status, song
+        self.status['state'] = 'pause'
+        self.error = ''
+        id_ = waiting['episode_id']
+        task = self.db.one('SELECT state FROM downloads WHERE episode_id=?', (id_,))
+        if not self.db.one('SELECT 1 FROM episodes WHERE id=?', (id_,)):
+            self.saved.pop('waiting_download', None)
+            self.persist()
+            return False
+        if task and task['state'] == 'ready':
+            self.saved.pop('waiting_download', None)
+            self.start_episode(id_, from_start=waiting.get('from_start', False), restart_timer=False)
+        elif not task or task['state'] in ('failed', 'error', 'cancelled', 'deleted', 'missing'):
+            self.saved.pop('waiting_download', None)
+            self.db.execute("UPDATE queue SET error='Download fehlgeschlagen oder abgebrochen' WHERE episode_id=?", (id_,))
+            self._queue_changed()
+            self._advance(natural=True)
+        self.persist()
+        return True
+
     def start_episode(self, episode_id, from_start=False, *, announce=True, position_override=None, restart_timer=False):
         with self.lock:
             if self.saved.get('intro', {}).get('kind') in ('mode', 'custom'):
                 self._interrupt_announcement()
             self._checkpoint()
             ep = self.episode(episode_id)
+            downloads = self.media.downloads if self.media else None
+            if ep['source_type'] == 'web' and downloads:
+                task = downloads.start_download(ep)
+                if task['state'] != 'ready':
+                    if self.status['state'] == 'play': self.mpd.call('pause', 1)
+                    self._freeze()
+                    if restart_timer: self._restart_sleep_timer()
+                    self.saved['waiting_download'] = {'episode_id': episode_id, 'from_start': from_start}
+                    self.saved['run_active'] = False
+                    self.status['state'] = 'pause'
+                    self.error = ''
+                    self.persist()
+                    return
+            self.saved.pop('waiting_download', None)
             position = position_override if position_override is not None else (0 if from_start or ep["completed"] else ep["position"])
             source_url, source_kind = ep["url"], "remote"
             if self.media:
@@ -480,7 +535,7 @@ class Player:
         # Avoid the current episode if there are alternatives; a single-episode library can repeat.
         base = """SELECT e.* FROM episodes e JOIN feeds f ON f.id=e.feed_id
                   LEFT JOIN media_roots r ON r.id=e.media_root_id
-                  WHERE (e.source_type<>'web' OR EXISTS(SELECT 1 FROM downloads d WHERE d.episode_id=e.id AND d.state='ready'))
+                  WHERE e.hidden=0 AND (e.source_type<>'web' OR EXISTS(SELECT 1 FROM downloads d WHERE d.episode_id=e.id AND d.state='ready'))
                   AND (e.url<>'' OR (e.local_source IS NOT NULL AND e.source_present=1 AND r.enabled=1))""" + scope
         rows = [r for r in self.db.rows(base + " ORDER BY RANDOM()", args) if r["id"] not in exclude]
         return next((e for e in rows if e["id"] != self.saved["episode_id"]), rows[0] if rows else None)
@@ -575,6 +630,14 @@ class Player:
         timer=preserve; timer=default selects the configured sleep duration. Repeated Play while already playing remains a no-op.
         """
         with self.lock:
+            waiting = self.saved.get('waiting_download')
+            if waiting and action in ('pause', 'toggle', 'normal', 'next', 'episode'):
+                self.saved.pop('waiting_download', None)
+                if action == 'next':
+                    self.db.execute("UPDATE queue SET error='Manuell übersprungen' WHERE episode_id=?", (waiting['episode_id'],))
+                self.persist()
+                if action in ('pause', 'toggle'):
+                    return
             self.sync()
             self._require_mpd()
             if action == 'normal':
@@ -999,6 +1062,8 @@ class Player:
 
     def delete_episodes(self, ids):
         with self.lock:
+            if self.saved.get('waiting_download', {}).get('episode_id') in ids:
+                self.saved.pop('waiting_download', None)
             if self.saved["episode_id"] in ids or self.saved.get("intro", {}).get("episode_id") in ids:
                 if self.saved.get('intro', {}).get('kind') == 'custom':
                     self._cancel_announcements()

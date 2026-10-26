@@ -220,7 +220,7 @@ def test_database_v1_migration_is_backed_up_and_non_destructive(tmp_path):
     ep=new.one('SELECT * FROM episodes WHERE id=7')
     assert ep['position']==123 and ep['bookmarked']==1
     assert new.one('SELECT * FROM queue')['episode_id']==7
-    assert new.one('PRAGMA user_version')['user_version']==5
+    assert new.one('PRAGMA user_version')['user_version']==6
     backup=Path(str(path)+'.before-v2.sqlite3')
     assert backup.exists()
     with sqlite3.connect(backup) as db:

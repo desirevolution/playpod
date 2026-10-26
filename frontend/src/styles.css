@@ -2095,3 +2095,36 @@ select {
     margin-bottom: 18px;
   }
 }
+
+/* Video thumbnails keep their aspect ratio in the large player. */
+.player-hero .art.big img {
+  object-fit: contain;
+  background: var(--panel);
+}
+.source-label {
+  color: var(--muted);
+  font-size: 11px;
+}
+.link-form label:has(select) {
+  display: grid;
+  gap: 6px;
+}
+.link-form label {
+  margin-top: 0;
+}
+.link-form input {
+  margin-top: 0;
+}
+.link-form label.check {
+  display: flex;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  align-items: center;
+}
+.link-form input:disabled {
+  opacity: 0.5;
+}
+dialog > .row.spread {
+  justify-content: space-between;
+}

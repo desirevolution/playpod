@@ -86,7 +86,7 @@ def test_page_link_real_ytdlp_ffmpeg_and_playback(download_rig, source):
     id_=response.json()['episode_id']
     task_id=response.json()['id']
     assert c.post('/api/v1/links',json={'url':base+'/episode.wav'}).json()['id']==task_id
-    assert c.post('/api/v1/episodes/play',json={'episode_id':id_}).status_code==409
+    assert c.post('/api/v1/episodes/play',json={'episode_id':id_}).json()['waiting_download'] is True
     d.run_one()
     row=d.task(task_id)
     assert row['state']=='ready', row['error']
@@ -101,7 +101,7 @@ def test_page_link_real_ytdlp_ffmpeg_and_playback(download_rig, source):
     assert '/downloads/' in mpd.song['file']
     mpd.start('http://other.test/audio.mp3')
     assert c.delete(f'/api/v1/episodes/{id_}/download/file').status_code==200
-    assert c.post('/api/v1/episodes/play',json={'episode_id':id_}).status_code==409
+    assert c.post('/api/v1/episodes/play',json={'episode_id':id_}).json()['waiting_download'] is True
     assert app.state.player.random_episode()['id']==1
 
 

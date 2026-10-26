@@ -21,6 +21,12 @@ class FeedInput(Input):
     favorite: bool = False
 
 
+class YouTubeInput(Input):
+    url: str = Field(min_length=1, max_length=4000)
+    kind: Literal['yt_playlist', 'yt_channel']
+    limit: int | None = Field(default=50, ge=1, le=100000)
+
+
 class ValueBool(Input):
     value: bool
 
@@ -182,7 +188,7 @@ class FeedResult(BaseModel):
     url: str
     title: str
     favorite: int
-    kind: Literal['rss', 'local', 'links']
+    kind: Literal['rss', 'local', 'links', 'yt_playlist', 'yt_channel']
     episode_count: int
     error: str
 
@@ -255,5 +261,6 @@ class ActivityStatusResult(BaseModel):
 
 
 class EpisodeLocationResult(BaseModel):
+    hidden: bool = False
     feed_id: int
     offset: int

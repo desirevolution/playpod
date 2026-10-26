@@ -123,3 +123,12 @@ Browser progress optionally accepts `playback_id`, a stable identifier for one p
 `GET /api/v1/feeds/ID/downloads/completed` previews the number and bytes of local copies for completed episodes. `DELETE` on the same URL removes those copies and returns `deleted`, `skipped` and `failed` counts. Episode records, bookmarks and progress remain. MPD's current source and announcement return source are protected; an unavailable MPD prevents deletion. Browser progress may include `in_use: true` with its `playback_id`; an active client refreshes its usage lease, which expires 90 seconds after its last report.
 
 The UI exposes per-episode copy deletion in the action menu, per-podcast finished-download cleanup, and orphan/storage maintenance under Settings. The dedicated download-manager modal has been removed.
+
+
+### YouTube collections
+
+`POST /api/v1/youtube/collections` accepts `{"url":"https://www.youtube.com/playlist?list=…","kind":"yt_playlist","limit":50}` or `kind:"yt_channel"` with a channel URL. `limit:null` selects all existing entries. Response: HTTP 202 with `id`, `job_id`, and `status_url`. The first refresh runs asynchronously; subsequent checks use the RSS interval. `POST /api/v1/feeds/{id}/refresh` refreshes a subscription, and `/feeds/refresh` includes RSS and YouTube subscriptions.
+
+`POST /api/v1/links` remains compatible and downloads a single link immediately. `PUT /api/v1/episodes/{id}/bookmark` with `{"value":true}` now also queues a download for a web/video episode. `POST /api/v1/queue` does likewise; existing audio RSS behavior is unchanged. `PlayerState.waiting_download` indicates a frozen pending handoff. Pause/toggle cancels this pending start without cancelling the download.
+
+`PUT /api/v1/episodes/{id}/hidden` with `{"value":true}` or false hides/unhides playlist/channel items. `GET /api/v1/episodes?filter=hidden` lists hidden items; other filters exclude them. Random candidates exclude hidden items. `DELETE /api/v1/episodes/{id}` now also removes individual link imports with their downloaded file (subscription entries cannot be manually removed). Deleting a YouTube collection using `DELETE /api/v1/feeds/{id}` deletes its entries and files. The existing legacy `DELETE /feeds/{id}/episodes` endpoint retains its prior metadata-only clearing behavior for compatibility; the UI uses collection deletion instead.

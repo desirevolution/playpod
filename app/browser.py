@@ -27,7 +27,7 @@ def add_browser_routes(app, db, player, media, downloads):
     def candidates(favorites_only: bool = False, selection: Literal['random','random_unheard'] = 'random'):
         return db.rows("""SELECT e.id FROM episodes e JOIN feeds f ON f.id=e.feed_id
             LEFT JOIN media_roots r ON r.id=e.media_root_id
-            WHERE (?=0 OR f.favorite=1) AND (?='random' OR e.completed=0)
+            WHERE e.hidden=0 AND (?=0 OR f.favorite=1) AND (?='random' OR e.completed=0)
             AND (e.source_type<>'web' OR EXISTS(SELECT 1 FROM downloads d WHERE d.episode_id=e.id AND d.state='ready'))
             AND (e.url<>'' OR (e.local_source IS NOT NULL AND e.source_present=1 AND r.enabled=1))
             ORDER BY RANDOM()""",(favorites_only,selection))
@@ -47,7 +47,11 @@ def add_browser_routes(app, db, player, media, downloads):
                 return {'episode':ep,'url':f'/media/{episode_id}?v={stat.st_mtime_ns}-{stat.st_size}','source_kind':'local'}
             except MediaError:
                 if not ep['url']:raise PlayerError('Lokale Datei nicht verfügbar')
-        if ep['source_type']=='web':raise PlayerError('YT-Import zuerst herunterladen')
+        if ep['source_type']=='web':
+            task = db.one('SELECT state,error FROM downloads WHERE episode_id=?', (episode_id,))
+            if task and task['state'] in ('queued','running','cancel_requested'):
+                raise PlayerError('Download wird vorbereitet', code='download_pending', status_code=409)
+            raise PlayerError('YT-Import zuerst herunterladen')
         if not ep['url']:raise PlayerError('Keine Wiedergabequelle verfügbar')
         return {'episode':ep,'url':f'/api/v1/browser/episodes/{episode_id}/stream','source_kind':'remote'}
 

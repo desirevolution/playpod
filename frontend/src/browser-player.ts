@@ -35,6 +35,8 @@ export class BrowserPlayer {
   error = "";
   kind: "local" | "remote" = "remote";
   position = 0;
+  waiting: { id: number; manual: boolean; fromStart: boolean } | null = null;
+  preparing = false;
   prepared = false;
   pendingSeek = false;
   needsStarted = false;
@@ -222,6 +224,7 @@ export class BrowserPlayer {
     return {
       state: this.current ? (this.audio.paused ? "pause" : "play") : "stop",
       phase: "episode",
+      waiting_download: !!this.waiting,
       elapsed:
         this.prepared && !this.pendingSeek
           ? this.audio.currentTime
@@ -294,6 +297,7 @@ export class BrowserPlayer {
       .catch(() => {});
   }
   pause() {
+    this.waiting = null;
     const playing = !this.audio.paused;
     this.generation++;
     this.tick();
@@ -303,6 +307,23 @@ export class BrowserPlayer {
     this.changed();
   }
   async refreshCurrent() {
+    if (this.waiting && this.active && !this.preparing) {
+      const waiting = this.waiting;
+      this.preparing = true;
+      try {
+        await this.start(waiting.id, waiting.manual, waiting.fromStart);
+      } catch (error) {
+        this.waiting = null;
+        if ((error as Error).name !== "NotAllowedError") {
+          const entry = this.queue.find((e) => e.id === waiting.id);
+          if (entry)
+            entry.queue_error = t("Download fehlgeschlagen oder abgebrochen");
+          await this.next(false);
+        }
+      } finally {
+        this.preparing = false;
+      }
+    }
     if (!this.current) return;
     if (this.active && this.prepared && Date.now() - this.lastReport > 10000)
       this.report();
@@ -341,9 +362,27 @@ export class BrowserPlayer {
     this.tick();
     if (playing) this.report();
     this.audio.pause();
-    const source = await this.request<Source>(
-      "browser/episodes/" + id + "/source",
-    );
+    this.waiting = null;
+    let source: Source;
+    try {
+      source = await this.request<Source>("browser/episodes/" + id + "/source");
+    } catch (error) {
+      if (gen !== this.generation) return false;
+      if ((error as Error & { code?: string }).code === "download_pending") {
+        this.current =
+          this.queue.find((e) => e.id === id) ||
+          (await this.request<Episode>("episodes/" + id));
+        if (gen !== this.generation) return false;
+        this.waiting = { id, manual, fromStart };
+        this.prepared = false;
+        this.position = 0;
+        this.error = "";
+        this.save();
+        this.changed();
+        return false;
+      }
+      throw error;
+    }
     if (gen !== this.generation) return false;
     this.current = source.episode;
     this.playbackId = playbackId || newPlaybackId();
@@ -378,6 +417,10 @@ export class BrowserPlayer {
         navigator.mediaSession.metadata = new MediaMetadata({
           title: this.current.title,
           artist: this.current.podcast,
+          artwork:
+            this.current.cover || this.current.feed_cover
+              ? [{ src: this.current.cover || this.current.feed_cover }]
+              : [],
         });
     } catch (e) {
       if (gen !== this.generation) return false;
@@ -457,6 +500,11 @@ export class BrowserPlayer {
   async next(manual = true) {
     if (this.advancing) return;
     this.advancing = true;
+    if (this.waiting && manual) {
+      const entry = this.queue.find((e) => e.id === this.waiting!.id);
+      if (entry) entry.queue_error = t("Manuell übersprungen");
+      this.waiting = null;
+    }
     const gen = this.generation;
     const old = this.current
       ? {
@@ -622,10 +670,10 @@ export class BrowserPlayer {
       if (added) {
         if (this.queue.length >= 200)
           throw new Error(t("Maximal 200 Einträge pro Browserqueue"));
-        this.queue = [
-          ...this.queue,
-          await this.request<Episode>("episodes/" + b.episode_id),
-        ];
+        const ep = await this.request<Episode>("episodes/" + b.episode_id);
+        if (ep.source_type === "web")
+          await this.request(`episodes/${ep.id}/download`, "POST");
+        this.queue = [...this.queue, ep];
         this.revision++;
         this.undo = null;
       }
@@ -634,6 +682,7 @@ export class BrowserPlayer {
       return { added, state: this.snapshot() };
     } else if (path === "queue" && method === "DELETE") {
       this.queue = [];
+      if (this.waiting) this.pause();
       this.revision++;
       this.undo = null;
     } else if (path === "queue/order") {
@@ -651,8 +700,15 @@ export class BrowserPlayer {
       const id = Number(path.split("/")[1]);
       if (path.endsWith("/retry")) {
         const e = this.queue.find((e) => e.id === id);
-        if (e) e.queue_error = "";
-      } else this.queue = this.queue.filter((e) => e.id !== id);
+        if (e) {
+          if (e.source_type === "web")
+            await this.request(`episodes/${e.id}/download`, "POST");
+          e.queue_error = "";
+        }
+      } else {
+        this.queue = this.queue.filter((e) => e.id !== id);
+        if (this.waiting?.id === id) this.pause();
+      }
       this.revision++;
       this.undo = null;
     } else throw new Error(t("Browserbefehl nicht unterstützt"));

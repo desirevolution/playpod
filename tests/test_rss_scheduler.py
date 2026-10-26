@@ -134,8 +134,9 @@ def test_interrupted_full_refresh_is_retried_before_the_next_interval(rig, monke
     monkeypatch.setattr('app.feeds.time.time', lambda: 100000)
     job_id = jobs.start_job('refresh')
     assert jobs.next_refresh_at() == 103600
-    # This is the state Database initialization assigns to an interrupted job.
-    db.execute("UPDATE jobs SET state='failed',error='interrupted' WHERE id=?", (job_id,))
+    from app.db import Database
+    Database(db.path)
+    assert db.one('SELECT state FROM jobs WHERE id=?', (job_id,))['state'] == 'interrupted'
     assert jobs.next_refresh_at() == 100000
     jobs._schedule_once()
     assert len(pending) == 2

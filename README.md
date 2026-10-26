@@ -95,7 +95,7 @@ services:
 
 Scan them from Settings. Removing a local library entry does not delete its file. `compose.media.yml` provides a single-folder example using `MEDIA_DIRECTORY`. Its mount target must also be included in `MEDIA_ROOTS`.
 
-Downloads run inside the same container. yt-dlp imports single video/audio links; playlists, channels and active live streams are not supported. Deleting a downloaded copy preserves the episode, bookmarks and progress. Orphan cleanup affects only managed download files. Files still referenced by MPD are protected. Third-party site availability depends on yt-dlp and the source site.
+Downloads run inside the same container. yt-dlp imports single video/audio links and metadata-only YouTube playlist/channel subscriptions. Shorts and livestreams are excluded. Deleting a downloaded copy preserves the episode, bookmarks and progress. Orphan cleanup affects only managed download files. Files still referenced by MPD are protected. Third-party site availability depends on yt-dlp and the source site.
 
 ## Playback targets and PWA
 
@@ -137,12 +137,15 @@ For live UI development run `npm run dev` in `frontend`; requests are proxied to
 
 `RSS_INTERVAL_SECONDS` is measured in seconds (43200 = 720 minutes = 12 hours). PlayPod persists the last full refresh start. Restarting preserves the deadline and immediately catches up an overdue run. On upgrade it uses the oldest existing RSS feed attempt; feeds never checked are immediately due. A manual full refresh resets the deadline; refreshing one podcast does not. Running refresh jobs are allowed to finish, with the scheduler checking again within a minute. Temporary scheduling failures are logged and retried after a minute. Individual feed errors are retried at the regular interval. Settings → Technical details and connections shows the latest job, the next automatic update and an inactive-scheduler warning when applicable.
 
-## About this project
-
-This project was built with AI assistance. I'm a lazy dev.
-
-## License
-
-[MIT](LICENSE).
-
 Interrupted full refresh jobs are retried after restart instead of waiting another interval.
+
+
+### YouTube collections
+
+Use Library → Import link and select a single video, YouTube playlist or channel. Single links download immediately into **YouTube · Einzelimporte**. Subscriptions appear separately with their source type and thumbnails, and use `RSS_INTERVAL_SECONDS` for periodic checks. Choose an initial count (default 50) or all: channels use latest videos, playlists their source order. Subsequent checks add new IDs without downloading audio, and do not silently import the older entries excluded by the initial count. Private/deleted entries are not newly imported. Only complete catalog responses can remove missing entries; existing local copies are retained until explicitly deleted.
+
+Adding a YouTube episode to the queue or marking it for later starts an idempotent audio download. RSS episodes continue to stream. Random only uses ready YouTube downloads and excludes hidden entries. A queue transition waits for a pending download with the sleep timer frozen; failures are marked in the queue and skipped. Pause cancels the pending autoplay intent, not the download. Removing a queue entry or bookmark does not cancel downloading. Browser and MPD queues retain their separate operation.
+
+Individual imports can be removed with their files, or just their local copy can be deleted. Playlist/channel items can be hidden/unhidden, rather than manually deleted. Deleting a YouTube collection removes all its entries and managed audio files after confirmation; duplicate copies in other collections are independent. In-use browser downloads must first be released. External media directories are never deleted. Thumbnails are remote image URLs; playback still uses downloaded audio.
+
+Database schema 6 adds import limits and hidden flags; upgrading an existing database creates a `.before-v6.sqlite3` backup. Older application versions cannot open schema 6.

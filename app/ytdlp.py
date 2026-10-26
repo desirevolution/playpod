@@ -70,3 +70,36 @@ def extract(url, directory, max_bytes, timeout, check, report):
             os.killpg(process.pid, signal.SIGKILL)
             process.wait(timeout=3)
         reader.join(timeout=1)
+
+
+def catalog(url, timeout, stop):
+    """Bounded metadata-only child; a partial/failed fetch is never a valid snapshot."""
+    import tempfile
+    with tempfile.TemporaryFile() as output:
+        process = subprocess.Popen([sys.executable, '-m', 'app.ytdlp_runner', '--catalog', url],
+            stdout=output, stderr=subprocess.DEVNULL, start_new_session=True)
+        deadline = time.monotonic() + timeout
+        try:
+            while process.poll() is None:
+                if stop.wait(.2):
+                    raise ValueError('App wird beendet')
+                if time.monotonic() > deadline or os.fstat(output.fileno()).st_size > 32 * 1024**2:
+                    raise ValueError('YouTube-Abgleich überschreitet Zeit- oder Metadatenlimit')
+            if os.fstat(output.fileno()).st_size > 32 * 1024**2:
+                raise ValueError('YouTube-Metadaten sind zu groß')
+            output.seek(0)
+            result, error = None, ''
+            for line in output:
+                event = json.loads(line)
+                if event.get('event') == 'catalog': result = event
+                elif event.get('event') == 'error': error = event.get('error', '')
+            if process.returncode or result is None:
+                raise ValueError(error or 'YouTube-Sammlung konnte nicht gelesen werden')
+            return result
+        finally:
+            try: os.killpg(process.pid, signal.SIGTERM)
+            except ProcessLookupError: pass
+            try: process.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                os.killpg(process.pid, signal.SIGKILL)
+                process.wait(timeout=3)

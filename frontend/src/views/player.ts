@@ -5,6 +5,7 @@ import { unsafeHTML } from "lit/directives/unsafe-html.js";
 import type { PlayPodApp } from "../main";
 import type { Episode, Feed, Job } from "../types";
 import { fmt, date, icon } from "../ui";
+import { downloadInfo } from "./management";
 export function renderPlayer(this: PlayPodApp) {
   const s = this.state,
     e = s?.current;
@@ -16,6 +17,7 @@ export function renderPlayer(this: PlayPodApp) {
   return html`<section aria-label=${t("Player")}>
     <div class="player-grid">
       <article class="panel player-main">
+        ${s?.waiting_download ? html`<p class="notice" role="status">${t("Download wird vorbereitet. Wiedergabe und Sleep-Timer warten.")}</p>` : nothing}
         ${s?.announcement_kind === "custom" ? html`<p class="notice" role="status">${t("Ansage")}: ${s.announcement_text}</p>` : nothing}
         <div class="player-hero">
           ${this.cover(e || null, true)}
@@ -274,6 +276,7 @@ export function queueItem(this: PlayPodApp, e: Episode, i: number) {
           ${e.podcast} · ${e.duration ? fmt(e.duration) : t("Dauer unbekannt")}
         </p>
         <h3>${e.title}</h3>
+        ${e.source_type === "web" ? downloadInfo.call(this, e) : nothing}
         ${e.queue_error ? html`<span class="tag error-tag">${localizeMessage(e.queue_error)}</span>` : nothing}
       </div>
     </div>

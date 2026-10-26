@@ -28,6 +28,8 @@ from .integrations import MPD, DisabledMPD, Notifications
 from .player import Player, PlayerError, MPDUnavailable
 from .media import MediaLibrary, MediaError
 from .downloads import Downloads
+from .youtube import YouTubeCatalog, KINDS as YOUTUBE_KINDS
+from .contracts import YouTubeInput
 from .activity import listing, prune
 
 
@@ -42,7 +44,9 @@ def create_app(settings=None, *, mpd=None, notifications=None, background=True):
     downloads = Downloads(db, settings)
     media.downloads = downloads
     player = Player(db, mpd, notifications, media=media)
-    jobs = FeedJobs(db, settings.refresh_seconds, media=media)
+    downloads.on_change = player.monitor_wake.set
+    youtube = YouTubeCatalog(db, downloads, player)
+    jobs = FeedJobs(db, settings.refresh_seconds, media=media, youtube=youtube)
     if not mpd_configured:
         player.status = {"state": "stop", "elapsed": 0, "duration": 0, "volume": -1}
         player.error = ""
@@ -71,6 +75,7 @@ def create_app(settings=None, *, mpd=None, notifications=None, background=True):
     app.state.db, app.state.player, app.state.jobs = db, player, jobs
     app.state.media = media
     app.state.downloads = downloads
+    app.state.youtube = youtube
 
     def error_response(status, code, message, details=None, headers=None):
         return JSONResponse({'error': {'code': code, 'message': message, 'details': details or []}},
@@ -212,12 +217,20 @@ def create_app(settings=None, *, mpd=None, notifications=None, background=True):
         id_ = db.execute("INSERT INTO feeds(url,title,favorite) VALUES(?,?,?)", (url, data.title or url, data.favorite))
         return {"id": id_, **accepted_job("refresh", id_)}
 
+    @app.post('/api/v1/youtube/collections', status_code=202)
+    def add_youtube_collection(data: YouTubeInput):
+        try:
+            id_ = youtube.add(data.url, data.kind, data.limit)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        return {'id': id_, **accepted_job('refresh', id_)}
+
     @app.put("/api/v1/feeds/{feed_id}")
     def edit_feed(feed_id: int, data: FeedInput):
         existing = db.one("SELECT * FROM feeds WHERE id=?", (feed_id,))
         if not existing:
             raise HTTPException(404, "Podcast nicht gefunden")
-        if existing["kind"] == "links":
+        if existing["kind"] == "links" or existing["kind"] in YOUTUBE_KINDS:
             if data.url != existing['url']:
                 raise PlayerError("Die Linksammlung hat keine veränderbare Feedadresse")
             db.execute('UPDATE feeds SET favorite=? WHERE id=?', (data.favorite, feed_id))
@@ -238,12 +251,16 @@ def create_app(settings=None, *, mpd=None, notifications=None, background=True):
 
     @app.delete("/api/v1/feeds/{feed_id}")
     def delete_feed(feed_id: int):
-        with player.lock:
+        with player.lock, downloads.lock:
             feed = db.one("SELECT kind FROM feeds WHERE id=?", (feed_id,))
             if feed and feed["kind"] == "local":
                 raise PlayerError("Lokale Sammlung über MEDIA_ROOTS deaktivieren. Einzelne Einträge können aus dem Katalog entfernt werden.")
             ids = [e["id"] for e in db.rows("SELECT id FROM episodes WHERE feed_id=?", (feed_id,))]
-            player.delete_episodes(ids)
+            if feed and feed['kind'] in (*YOUTUBE_KINDS, 'links'):
+                youtube.delete(ids)
+                db.execute('DELETE FROM settings WHERE key=?', (f'yt_seen:{feed_id}',))
+            else:
+                player.delete_episodes(ids)
             db.execute("DELETE FROM feeds WHERE id=?", (feed_id,))
         return {"ok": True}
 
@@ -288,28 +305,28 @@ def create_app(settings=None, *, mpd=None, notifications=None, background=True):
     @app.get('/api/v1/episodes/{episode_id}/location', response_model=EpisodeLocationResult)
     def episode_location(episode_id: int):
         with db.connect() as conn:
-            ep = conn.execute('SELECT feed_id,published,id FROM episodes WHERE id=?', (episode_id,)).fetchone()
+            ep = conn.execute('SELECT feed_id,published,id,hidden FROM episodes WHERE id=?', (episode_id,)).fetchone()
             if not ep:
                 raise HTTPException(404, 'Episode nicht gefunden')
-            rank = conn.execute('''SELECT COUNT(*) FROM episodes WHERE feed_id=? AND
+            rank = conn.execute('''SELECT COUNT(*) FROM episodes WHERE feed_id=? AND hidden=? AND
                 (published>? OR (published IS ? AND id>?) OR (? IS NULL AND published IS NOT NULL))''',
-                (ep['feed_id'],ep['published'],ep['published'],episode_id,ep['published'])).fetchone()[0]
-            return {'feed_id': ep['feed_id'], 'offset': (rank // 50) * 50}
+                (ep['feed_id'],ep['hidden'],ep['published'],ep['published'],episode_id,ep['published'])).fetchone()[0]
+            return {'feed_id': ep['feed_id'], 'offset': (rank // 50) * 50, 'hidden': bool(ep['hidden'])}
 
     @app.get("/api/v1/episodes", response_model=EpisodeListResult)
-    def episodes(q: str = "", filter: Literal["all", "marked", "new", "started", "completed", "local", "downloaded"] = "all", feed_id: int | None = None, offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=200)):
-        where, args = ["1=1"], []
+    def episodes(q: str = "", filter: Literal["all", "marked", "new", "started", "completed", "local", "downloaded", "hidden"] = "all", feed_id: int | None = None, offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=200)):
+        where, args = ["e.hidden=1" if filter == "hidden" else "e.hidden=0"], []
         if q:
             where.append("(instr(casefold(e.title),casefold(?))>0 OR instr(casefold(f.title),casefold(?))>0)")
             args += [q, q]
         if feed_id is not None:
             where.append("e.feed_id=?")
             args.append(feed_id)
-        clause = {"all": "1=1", "marked": "e.bookmarked=1", "new": "e.last_started IS NULL AND e.completed=0", "started": "e.last_started IS NOT NULL AND e.completed=0", "completed": "e.completed=1", "local": "e.local_source IS NOT NULL", "downloaded": "EXISTS(SELECT 1 FROM downloads d WHERE d.episode_id=e.id AND d.state='ready')"}[filter]
+        clause = {"hidden": "1=1", "all": "1=1", "marked": "e.bookmarked=1", "new": "e.last_started IS NULL AND e.completed=0", "started": "e.last_started IS NOT NULL AND e.completed=0", "completed": "e.completed=1", "local": "e.local_source IS NOT NULL", "downloaded": "EXISTS(SELECT 1 FROM downloads d WHERE d.episode_id=e.id AND d.state='ready')"}[filter]
         where.append(clause)
         base = " FROM episodes e JOIN feeds f ON f.id=e.feed_id WHERE " + " AND ".join(where)
         total = db.one("SELECT COUNT(*) AS n" + base, args)["n"]
-        items = db.rows("SELECT e.*, f.title AS podcast, f.cover AS feed_cover" + base + " ORDER BY e.published DESC,e.id DESC LIMIT ? OFFSET ?", (*args, limit, offset))
+        items = db.rows("SELECT e.*, f.title AS podcast, f.cover AS feed_cover, f.kind AS feed_kind" + base + " ORDER BY e.published DESC,e.id DESC LIMIT ? OFFSET ?", (*args, limit, offset))
         return {"items": items, "total": total}
 
     @app.get("/api/v1/episodes/{episode_id}", response_model=EpisodeResult)
@@ -320,8 +337,12 @@ def create_app(settings=None, *, mpd=None, notifications=None, background=True):
     def remove_local_episode(episode_id: int):
         with player.lock:
             ep = player.episode(episode_id)
+            if ep.get('source_type') == 'web' and ep.get('feed_kind') == 'links':
+                with downloads.lock:
+                    youtube.delete([episode_id])
+                return {'ok': True, 'file_deleted': True}
             if not ep["media_root_id"] or ep["url"]:
-                raise PlayerError("Dieser Endpunkt entfernt nur lokale Katalogeinträge")
+                raise PlayerError("Nur Einzelimporte oder lokale Katalogeinträge können entfernt werden")
             player.delete_episodes([episode_id])
         return {"ok": True, "file_deleted": False}
 
@@ -475,9 +496,20 @@ def create_app(settings=None, *, mpd=None, notifications=None, background=True):
                             filename=path.name, content_disposition_type="inline",
                             headers={"Cache-Control": "no-cache"})
 
+    @app.put('/api/v1/episodes/{episode_id}/hidden')
+    def hide_episode(episode_id: int, data: ValueBool):
+        ep = player.episode(episode_id)
+        if ep.get('feed_kind') not in YOUTUBE_KINDS:
+            raise PlayerError('Ausblenden ist nur für YouTube-Sammlungen verfügbar')
+        db.execute('UPDATE episodes SET hidden=? WHERE id=?', (data.value, episode_id))
+        return {'ok': True}
+
     @app.put("/api/v1/episodes/{episode_id}/bookmark")
     def bookmark(episode_id: int, data: ValueBool):
         player.episode(episode_id)
+        if data.value:
+            ep = player.episode(episode_id)
+            if ep['source_type'] == 'web': downloads.start_download(ep)
         db.execute("UPDATE episodes SET bookmarked=? WHERE id=?", (data.value, episode_id))
         return {"ok": True}
 

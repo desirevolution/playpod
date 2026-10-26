@@ -1,6 +1,8 @@
 export type Episode = {
   id: number;
   source_type: "audio" | "web";
+  hidden?: number;
+  feed_kind?: Feed["kind"];
   feed_id: number;
   title: string;
   podcast: string;
@@ -30,10 +32,11 @@ export type Feed = {
   last_success: number | null;
   error: string;
   episode_count: number;
-  kind: "rss" | "local" | "links";
+  kind: "rss" | "local" | "links" | "yt_playlist" | "yt_channel";
 };
 export type PlayerState = {
   phase: "announcement" | "episode";
+  waiting_download?: boolean;
   announcement_kind?: "title" | "mode" | "custom" | null;
   announcement_text?: string;
   state: string;

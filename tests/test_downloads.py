@@ -240,7 +240,7 @@ def test_legacy_copy_recognized_without_database_migration(download_rig):
     restored=Downloads(app.state.db,settings)
     assert restored.file(id_).suffix=='.wav'
     assert restored.playback_url(1).endswith(id_)
-    assert app.state.db.one('PRAGMA user_version')['user_version']==5
+    assert app.state.db.one('PRAGMA user_version')['user_version']==6
 
 
 def test_stop_requeues_inflight_transfer(download_rig):

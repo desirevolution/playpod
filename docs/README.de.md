@@ -46,3 +46,20 @@ Ein manueller Gesamtlauf setzt den nächsten Termin neu. Das Aktualisieren nur e
 Unter **Einstellungen → Technik und Verbindungen** stehen letzter Auftrag, nächster automatischer Termin und gegebenenfalls ein Hinweis auf einen inaktiven Scheduler. „Abgeschlossen“ beschreibt den Auftrag; Fehler einzelner Feeds werden daneben gezählt. Neue automatische Aufträge erscheinen im Log als `Automatische Feedaktualisierung gestartet`.
 
 Beim Neustart unterbrochene Gesamtaktualisierungen werden erneut versucht, ohne ein weiteres komplettes Intervall zu warten.
+
+
+### YouTube-Importe und Sammlungen
+
+In **Bibliothek → Import** gibt es die Importarten Einzelvideo, YouTube-Playlist und YouTube-Kanal. Einzelimporte starten sofort einen Download und erscheinen unter **YouTube · Einzelimporte**. Playlists und Kanäle bilden eigene Sammlungen mit Herkunftskennzeichnung und Vorschaubildern. Sie werden im gleichen Intervall wie RSS (`RSS_INTERVAL_SECONDS`) geprüft, ohne automatisch Audiodateien herunterzuladen.
+
+Beim ersten Import kann eine Anzahl (Vorgabe 50) oder „Alle“ gewählt werden. Kanäle verwenden ihre neuesten Videos, Playlists die Playlist-Reihenfolge. Der erste Abgleich merkt sich auch die zunächst nicht importierten IDs: Spätere Prüfungen ergänzen neue Videos und laden nicht ungefragt den restlichen alten Katalog nach. Shorts und Livestreams einschließlich Aufzeichnungen werden ausgeschlossen. Private/gelöschte Einträge werden nicht neu importiert. Ein gescheiterter oder erkennbar unvollständiger Abruf darf keine Einträge entfernen.
+
+**Anhängen** und **Für später merken** laden YouTube-Episoden bei Bedarf herunter. Bereits laufende oder fertige Downloads werden wiederverwendet. RSS-Episoden werden weiterhin gestreamt. Das Entfernen eines Merkers oder Warteschlangeneintrags bricht keinen Download ab. Random verwendet nur fertige YouTube-Downloads und keine ausgeblendeten Einträge.
+
+Erreicht die Wiedergabe einen wartenden Download, pausiert der Player einschließlich Sleep-Timer, bis die Datei bereitsteht. Downloadfehler werden in der Warteschlange markiert und übersprungen. Pause beendet die wartende Startabsicht; der Download läuft weiter. Browser und MPD bleiben getrennte Wiedergabeziele.
+
+Einzelimporte lassen sich samt Datei entfernen; „Lokale Kopie löschen“ behält normalerweise den Katalogeintrag. Playlist-/Kanalepisoden lassen sich ausblenden und über den Filter **Ausgeblendet** wiederherstellen. Nicht mehr verfügbare bzw. aus der Sammlung entfernte Videos bleiben erhalten, solange eine fertige lokale Datei existiert. Nach Löschen dieser Datei räumt der nächste erfolgreiche Sammlungsabgleich den nicht mehr verfügbaren Eintrag auf.
+
+Das bestätigte Löschen einer YouTube-Sammlung entfernt alle ihre Einträge und Audiodateien. Duplikate und Dateien anderer Sammlungen bleiben unabhängig erhalten. Browserseitig verwendete Dateien müssen vor einer endgültigen Löschung freigegeben werden; externe Medienverzeichnisse werden niemals gelöscht. Die Cover sind externe Vorschaubild-URLs, keine lokal gespeicherten Bilddateien.
+
+Das Datenbankschema wird auf Version 6 erweitert. Vor dem Upgrade einer vorhandenen Datenbank entsteht eine Sicherung mit der Endung `.before-v6.sqlite3`.

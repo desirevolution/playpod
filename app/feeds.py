@@ -39,9 +39,10 @@ def safe_html(text):
 
 
 class FeedJobs:
-    def __init__(self, db, interval=3600, media=None):
+    def __init__(self, db, interval=3600, media=None, youtube=None):
         self.db, self.interval = db, interval
         self.media = media
+        self.youtube = youtube
         self.lock = threading.Lock()
         self.executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="feeds")
         self.stop_event = threading.Event()
@@ -76,7 +77,7 @@ class FeedJobs:
                 self.db.execute("UPDATE jobs SET state='done',finished=? WHERE id=?", (time.time(), job_id))
                 return
             if kind == "refresh":
-                rows = self.db.rows("SELECT * FROM feeds WHERE kind='rss'" + (" AND id=?" if feed_id else ""), (feed_id,) if feed_id else ())
+                rows = self.db.rows("SELECT * FROM feeds WHERE kind IN ('rss','yt_playlist','yt_channel')" + (" AND id=?" if feed_id else ""), (feed_id,) if feed_id else ())
             else:
                 rows = self.db.rows("SELECT id,url FROM episodes WHERE source_type='audio' AND url<>'' AND NOT EXISTS(SELECT 1 FROM downloads d WHERE d.episode_id=episodes.id AND d.state='ready')")
             self.db.execute("UPDATE jobs SET total=? WHERE id=?", (len(rows), job_id))
@@ -86,7 +87,7 @@ class FeedJobs:
                     raise RuntimeError("App wird beendet")
                 if kind == "refresh":
                     try:
-                        count = self.refresh(row["id"], row["url"])
+                        count = self.youtube.refresh(row["id"]) if row["kind"].startswith("yt_") else self.refresh(row["id"], row["url"])
                         results.append({"id": row["id"], "ok": True, "count": count})
                     except Exception:
                         log.warning("Feed %s konnte nicht aktualisiert werden", row["id"], exc_info=True)
@@ -189,14 +190,14 @@ class FeedJobs:
             return {"status": "temporary_error", "error": "Verbindungsfehler oder Zeitüberschreitung", "final_url": url}
 
     def next_refresh_at(self):
-        feeds = self.db.one("SELECT COUNT(*) AS count, MIN(COALESCE(last_attempt, 0)) AS oldest FROM feeds WHERE kind='rss'")
+        feeds = self.db.one("SELECT COUNT(*) AS count, MIN(COALESCE(last_attempt, 0)) AS oldest FROM feeds WHERE kind IN ('rss','yt_playlist','yt_channel')")
         if not feeds["count"]:
             return None
         last = self.db.get("rss_last_full_refresh")
         job_id = self.db.get("rss_last_full_refresh_job")
         if job_id:
             job = self.db.one("SELECT state FROM jobs WHERE id=?", (job_id,))
-            if job and job["state"] == "failed":
+            if job and job["state"] in ("failed", "interrupted"):
                 # Database startup marks interrupted jobs failed. Retry those, rather
                 # than treating an unfinished pass as another full interval checked.
                 return time.time()

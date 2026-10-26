@@ -42,7 +42,8 @@ class Downloads:
         self.browser_leases = {}
         self.stop = threading.Event()
         self.thread = None
-        db.execute("UPDATE feeds SET title='YT-Importe' WHERE url='playpod-links://manual' AND title IN ('Einzelne Links','Linkimporte')")
+        self.on_change = lambda: None
+        db.execute("UPDATE feeds SET title='YouTube · Einzelimporte' WHERE url='playpod-links://manual' AND title IN ('Einzelne Links','Linkimporte','YT-Importe')")
         db.execute("UPDATE downloads SET state='queued',received=0,total=NULL WHERE state='running'")
         db.execute("UPDATE downloads SET state='cancelled' WHERE state='cancel_requested'")
 
@@ -92,6 +93,8 @@ class Downloads:
                     pass
             elif row and row['state'] in ('queued', 'running', 'cancel_requested'):
                 return row
+            if episode.get('source_type') == 'web' and not episode.get('source_present', 1):
+                raise PlayerError('Quelle nicht mehr verfügbar; kein neuer Download möglich')
             id_ = str(uuid4())
             self.db.execute("""INSERT INTO downloads(episode_id,id,source_url,state,updated)
                 VALUES(?,?,?,'queued',?) ON CONFLICT(episode_id) DO UPDATE SET
@@ -105,7 +108,7 @@ class Downloads:
         url = web_url(url).split('#', 1)[0]
         key = 'link:' + hashlib.sha256(url.encode()).hexdigest()
         with self.lock, self.db.connect() as conn:
-            conn.execute("INSERT OR IGNORE INTO feeds(url,title,kind) VALUES('playpod-links://manual','YT-Importe','links')")
+            conn.execute("INSERT OR IGNORE INTO feeds(url,title,kind) VALUES('playpod-links://manual','YouTube · Einzelimporte','links')")
             feed_id = conn.execute("SELECT id FROM feeds WHERE url='playpod-links://manual'").fetchone()[0]
             inserted = conn.execute("INSERT OR IGNORE INTO episodes(feed_id,source_key,title,url,source_type) VALUES(?,?,?,?, 'web')", (feed_id, key, url, url)).rowcount
             id_ = conn.execute('SELECT id FROM episodes WHERE feed_id=? AND source_key=?', (feed_id, key)).fetchone()[0]
@@ -194,8 +197,8 @@ class Downloads:
                 title = metadata.get('title') or row['source_url']
                 description = '<p>' + html.escape(metadata.get('description') or '').replace('\n','<br>') + '</p>'
                 with self.db.connect() as conn:
-                    conn.execute('UPDATE episodes SET title=?,description=?,duration=? WHERE id=?',
-                                 (title, description, audio.info.length, row['episode_id']))
+                    conn.execute('UPDATE episodes SET title=?,description=?,duration=?,cover=CASE WHEN length(?)>0 THEN ? ELSE cover END WHERE id=?',
+                                 (title, description, audio.info.length, metadata.get('thumbnail') or '', metadata.get('thumbnail') or '', row['episode_id']))
                     conn.execute('UPDATE activity SET title=? WHERE episode_id=?', (title,row['episode_id']))
                     conn.execute("UPDATE downloads SET state='ready',phase='download',received=?,total=?,error='' WHERE id=?", (size, size, id_))
                 committed = True
@@ -211,6 +214,7 @@ class Downloads:
                 raise PlayerError('Kein abbrechbarer Download vorhanden')
             state = 'cancelled' if row['state'] == 'queued' else 'cancel_requested'
             self.db.execute('UPDATE downloads SET state=?,updated=? WHERE episode_id=?', (state, time.time(), episode_id))
+            self.on_change()
 
     def file(self, id_):
         row = self.task(id_)
@@ -318,6 +322,7 @@ class Downloads:
         finally:
             part.unlink(missing_ok=True)
             self.db.execute("UPDATE downloads SET state='cancelled' WHERE id=? AND state='cancel_requested'", (id_,))
+            self.on_change()
         return True
 
     def start(self):

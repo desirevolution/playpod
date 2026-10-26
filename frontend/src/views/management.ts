@@ -19,13 +19,13 @@ export function renderManagement(this: PlayPodApp) {
     await this.loadManagement();
   };
   const podcasts = () =>
-    html`<nav class="podcast-list" aria-label=${t("Podcasts")}>
+    html`<nav class="podcast-list" aria-label=${t("Sammlungen")}>
       <button
         class=${this.feedFilter === null ? "selected" : ""}
         aria-pressed=${this.feedFilter === null}
         @click=${() => void choose(null)}
       >
-        ${t("Alle Podcasts")}
+        ${t("Alle Sammlungen")}
       </button>
       ${this.feeds.map(
         (f) =>
@@ -35,7 +35,7 @@ export function renderManagement(this: PlayPodApp) {
             @click=${() => void choose(f.id)}
           >
             ${this.cover(f)}<span class="podcast-name"
-              ><strong>${f.title}</strong
+              ><strong>${f.title}</strong><small>${collectionType(f)} · </small
               ><small
                 >${countText(f.episode_count, "{count} Episode", "{count} Episoden")}${f.error ? html` · <span class="error-tag">${t("Fehler")}</span>` : nothing}</small
               ></span
@@ -47,8 +47,8 @@ export function renderManagement(this: PlayPodApp) {
     <div class="library-tools">
       <input
         type="search"
-        placeholder=${t("Podcast oder Episode suchen …")}
-        aria-label=${t("Podcast oder Episode suchen")}
+        placeholder=${t("Sammlung oder Episode suchen …")}
+        aria-label=${t("Sammlung oder Episode suchen")}
         .value=${this.query}
         @input=${(ev: Event) => {
           this.query = (ev.target as HTMLInputElement).value;
@@ -80,7 +80,7 @@ export function renderManagement(this: PlayPodApp) {
     <div class="library-layout">
       <aside class="podcast-sidebar">
         <div class="panel-head">
-          <h2>${t("Podcasts")}</h2>
+          <h2>${t("Sammlungen")}</h2>
           ${this.button("refresh", t("Alle aktualisieren"), "refresh")}
         </div>
         ${podcasts()}
@@ -88,8 +88,8 @@ export function renderManagement(this: PlayPodApp) {
           <summary>
             ${selected ? this.cover(selected) : icon("library")}
             <span class="podcast-name"
-              ><small>${t("Podcast auswählen")}</small
-              ><strong>${selected?.title || t("Alle Podcasts")}</strong></span
+              ><small>${t("Sammlung auswählen")}</small
+              ><strong>${selected?.title || t("Alle Sammlungen")}</strong></span
             >
             <span class="picker-chevron" aria-hidden="true">⌄</span>
           </summary>
@@ -120,6 +120,7 @@ export function renderManagement(this: PlayPodApp) {
             ["completed", t("Gehört")],
             ["local", t("Lokale Medien")],
             ["downloaded", t("Heruntergeladen")],
+            ["hidden", t("Ausgeblendet")],
           ].map(
             ([value, label]) =>
               html`<button
@@ -152,6 +153,7 @@ export function renderManagement(this: PlayPodApp) {
               ["completed", t("Gehört")],
               ["local", t("Lokale Medien")],
               ["downloaded", t("Heruntergeladen")],
+              ["hidden", t("Ausgeblendet")],
             ].map(
               ([value, label]) =>
                 html`<option value=${value}>${label}</option>`,
@@ -171,7 +173,8 @@ export function renderManagement(this: PlayPodApp) {
               ${this.cover(e)}
               <div class="item-text">
                 <p>
-                  ${e.podcast} · ${date(e.published)} ·
+                  ${e.source_type === "web" ? html`<span class="source-label">YouTube</span> · ` : nothing}${e.podcast}
+                  · ${date(e.published)} ·
                   ${e.duration ? fmt(e.duration) : t("Dauer unbekannt")}
                 </p>
                 <h3>
@@ -223,6 +226,8 @@ export function renderManagement(this: PlayPodApp) {
                       ${t("Beschreibung ansehen")}
                     </button>
                     ${downloadButton.call(this, e)}
+                    ${e.feed_kind === "links" ? html`<button class="ghost danger" data-action="import-remove" data-id=${e.id}>${t("Import entfernen")}</button>` : nothing}
+                    ${e.feed_kind?.startsWith("yt_") ? html`<button class="ghost" data-action="hide-episode" data-id=${e.id}>${e.hidden ? t("Wieder einblenden") : t("Ausblenden")}</button>` : nothing}
                     ${e.local_source && !e.url ? html`<button class="ghost danger" data-action="remove-local" data-id=${e.id}>${t("Aus Katalog entfernen")}</button>` : nothing}
                   </div>
                 </details>
@@ -262,7 +267,7 @@ function feedActions(this: PlayPodApp, f: Feed) {
   return html`<div class="feed-actions">
     ${f.kind === "rss" && this.downloads.enabled ? html`<button class="ghost small" data-action="feed-download" data-id=${f.id} ?disabled=${this.busy}>${t("Ungehörte herunterladen")}</button>` : nothing}${f.kind !== "local" ? html`<button class="ghost small" data-action="feed-delete-heard" data-id=${f.id} ?disabled=${this.busy}>${t("Gehörte Downloads löschen")}</button>` : nothing}
     <details class="action-menu">
-      <summary aria-label=${t("Podcast-Aktionen")}>${icon("more")}</summary>
+      <summary aria-label=${t("Sammlungsaktionen")}>${icon("more")}</summary>
       <div class="menu-items">
         <button class="ghost" data-action="favorite" data-id=${f.id}>
           ${f.favorite ? t("Favorit entfernen") : t("Favorisieren")}
@@ -272,12 +277,12 @@ function feedActions(this: PlayPodApp, f: Feed) {
         <button class="ghost" data-action="cleanup">
           ${t("Quellen prüfen")}
         </button>
-        ${f.kind === "links" ? html`<button class="ghost danger" data-action="link-clear" data-id=${f.id}>${t("Importliste leeren")}</button>` : f.kind === "rss" ? html`<button class="ghost danger" data-action="feed-delete" data-id=${f.id}>${t("Podcast löschen")}</button>` : nothing}
+        ${f.kind !== "local" ? html`<button class="ghost danger" data-action="feed-delete" data-id=${f.id}>${t("Sammlung löschen")}</button>` : nothing}
       </div>
     </details>
   </div>`;
 }
-function downloadInfo(this: PlayPodApp, e: Episode) {
+export function downloadInfo(this: PlayPodApp, e: Episode) {
   const d = this.downloads.items.find((d) => d.episode_id === e.id);
   if (!d) return nothing;
   const amount = `${(d.received / 1048576).toLocaleString(localeTag(), { maximumFractionDigits: 1 })} MB`;
@@ -332,4 +337,16 @@ function downloadButton(this: PlayPodApp, e: Episode) {
   >
     ${pending ? t("Download abbrechen") : t("Herunterladen")}
   </button>`;
+}
+
+function collectionType(f: Feed) {
+  return f.kind === "yt_playlist"
+    ? t("YT-Playlist")
+    : f.kind === "yt_channel"
+      ? t("YT-Kanal")
+      : f.kind === "links"
+        ? t("Einzelimporte")
+        : f.kind === "local"
+          ? t("Lokale Medien")
+          : t("Podcast");
 }

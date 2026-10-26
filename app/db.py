@@ -52,7 +52,7 @@ class Database:
         with self.connect() as db:
             db.execute("PRAGMA journal_mode=WAL")
             version = db.execute("PRAGMA user_version").fetchone()[0]
-            if version > 5:
+            if version > 6:
                 raise RuntimeError("Diese Datenbank benötigt eine neuere PlayPod-Version.")
             if version == 0:
                 db.executescript(SCHEMA)
@@ -128,6 +128,25 @@ class Database:
                 db.execute('CREATE INDEX activity_created ON activity(created)')
                 db.execute('INSERT INTO schema_migrations VALUES(5)')
                 db.execute('PRAGMA user_version=5')
+            if version < 6:
+                db.commit()
+                backup = Path(path + ".before-v6.sqlite3")
+                if version > 0 and not backup.exists():
+                    db.commit()
+                    dest = sqlite3.connect(backup)
+                    try:
+                        db.backup(dest)
+                    finally:
+                        dest.close()
+                db.execute('BEGIN IMMEDIATE')
+                columns = {row[1] for row in db.execute('PRAGMA table_info(feeds)')}
+                if 'import_limit' not in columns:
+                    db.execute('ALTER TABLE feeds ADD COLUMN import_limit INTEGER')
+                columns = {row[1] for row in db.execute('PRAGMA table_info(episodes)')}
+                if 'hidden' not in columns:
+                    db.execute('ALTER TABLE episodes ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0')
+                db.execute('INSERT OR IGNORE INTO schema_migrations VALUES(6)')
+                db.execute('PRAGMA user_version=6')
             from .activity import prune
             prune(db)
             # A killed refresh/cleanup job cannot resume halfway; results remain inspectable.
