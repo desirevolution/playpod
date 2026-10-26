@@ -66,6 +66,8 @@ export type Config = {
   tts_mode: "audio" | "disabled";
   database: string;
   rss_interval: number;
+  rss_next_refresh?: number | null;
+  rss_scheduler_running?: boolean;
   sleep_defaults: {
     minutes: number;
     when_queue_empty: "random" | "random_unheard";

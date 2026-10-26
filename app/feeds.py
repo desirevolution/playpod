@@ -59,7 +59,11 @@ class FeedJobs:
                     self.refresh_again = True
                 return existing["id"]
             job_id = uuid.uuid4().hex
-            self.db.execute("INSERT INTO jobs(id,kind,state,created) VALUES(?,?,'running',?)", (job_id, kind, time.time()))
+            created = time.time()
+            self.db.execute("INSERT INTO jobs(id,kind,state,created) VALUES(?,?,'running',?)", (job_id, kind, created))
+            if kind == "refresh" and feed_id is None:
+                self.db.put("rss_last_full_refresh", created)
+                self.db.put("rss_last_full_refresh_job", job_id)
             self.executor.submit(self._run, job_id, kind, feed_id)
             return job_id
 
@@ -96,6 +100,7 @@ class FeedJobs:
                 self.db.execute("UPDATE jobs SET progress=?,results=? WHERE id=?", (len(results), json.dumps(results), job_id))
             self.db.execute("UPDATE jobs SET state='done',finished=? WHERE id=?", (time.time(), job_id))
         except Exception:
+            log.exception("Feed-Auftrag %s (%s) wurde unterbrochen", job_id, kind)
             self.db.execute("UPDATE jobs SET state='failed',error='Auftrag wurde unterbrochen',finished=? WHERE id=?", (time.time(), job_id))
         finally:
             if kind == "refresh":
@@ -183,11 +188,53 @@ class FeedJobs:
         except (requests.RequestException, ValueError):
             return {"status": "temporary_error", "error": "Verbindungsfehler oder Zeitüberschreitung", "final_url": url}
 
+    def next_refresh_at(self):
+        feeds = self.db.one("SELECT COUNT(*) AS count, MIN(COALESCE(last_attempt, 0)) AS oldest FROM feeds WHERE kind='rss'")
+        if not feeds["count"]:
+            return None
+        last = self.db.get("rss_last_full_refresh")
+        job_id = self.db.get("rss_last_full_refresh_job")
+        if job_id:
+            job = self.db.one("SELECT state FROM jobs WHERE id=?", (job_id,))
+            if job and job["state"] == "failed":
+                # Database startup marks interrupted jobs failed. Retry those, rather
+                # than treating an unfinished pass as another full interval checked.
+                return time.time()
+        if last is None:
+            # Upgrade existing installations without restarting the entire interval.
+            # A never-checked feed makes the first full pass immediately due.
+            last = feeds["oldest"]
+        return last + self.interval if last else time.time()
+
+    def _schedule_once(self):
+        due = self.next_refresh_at()
+        if due is None:
+            return 60
+        now = time.time()
+        if due <= now:
+            # A slow/manual refresh already in progress must not create a repeat loop.
+            if not self.db.one("SELECT id FROM jobs WHERE kind='refresh' AND state='running'"):
+                job_id = self.start_job("refresh")
+                log.info("Automatische Feedaktualisierung gestartet: %s", job_id)
+            return 60
+        return min(60, due - now)
+
     def start_scheduler(self):
+        if self.scheduler and self.scheduler.is_alive():
+            return
+
         def loop():
-            while not self.stop_event.wait(self.interval):
-                self.start_job("refresh")
-        self.scheduler = threading.Thread(target=loop, daemon=True)
+            while not self.stop_event.is_set():
+                try:
+                    delay = self._schedule_once()
+                except Exception:
+                    # A temporary database/scheduling error must not kill the worker.
+                    log.exception("Automatische Feedaktualisierung konnte nicht geplant werden")
+                    delay = 60
+                if self.stop_event.wait(delay):
+                    break
+
+        self.scheduler = threading.Thread(target=loop, daemon=True, name="rss-scheduler")
         self.scheduler.start()
 
     def close(self):

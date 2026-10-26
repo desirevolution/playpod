@@ -571,7 +571,9 @@ def create_app(settings=None, *, mpd=None, notifications=None, background=True):
                 "mqtt": "connected" if notifications.client and notifications.client.is_connected() else "disconnected" if settings.mqtt_host else "disabled",
                 "tts": "configured" if settings.tts_audio_url else "disabled",
                 "tts_mode": "audio" if settings.tts_audio_url else "disabled", "database": "SQLite",
-                "rss_interval": settings.refresh_seconds, "rss_last_refresh": refresh, "media_roots": media.roots(),
+                "rss_interval": settings.refresh_seconds, "rss_last_refresh": refresh,
+                "rss_next_refresh": jobs.next_refresh_at(),
+                "rss_scheduler_running": bool(jobs.scheduler and jobs.scheduler.is_alive()), "media_roots": media.roots(),
                 "media_base_url": settings.media_base_url, "media_enabled": True}
 
     from .browser import add_browser_routes

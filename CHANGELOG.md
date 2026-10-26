@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+- Automatische RSS-Aktualisierung berücksichtigt den gespeicherten letzten Gesamtlauf statt nach jedem Neustart erneut das ganze Intervall abzuwarten. Überfällige Läufe werden beim Start nachgeholt; temporäre Schedulerfehler werden protokolliert und erneut versucht. Nächster Termin und Schedulerstatus in den Einstellungen.
+
 - Allgemeine Layoutprüfung: kompakte Einstellungsfelder, umbrechende Abschnittsköpfe und Hilfstexte mit Lesebreite; stabile Scrollleistenbreite gegen seitliches Springen.
 
 - Mini-Player: im Inhaltsbereich zentriert, maximal 1080px breit, kompakte Covergröße, Titel-Tooltip und dezente Fortschrittslinie.

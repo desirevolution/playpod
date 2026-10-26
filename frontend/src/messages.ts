@@ -372,6 +372,9 @@ export const english: Record<string, string> = {
   "Für später gemerkt": "Bookmarked for later",
   "Nur Favoriten": "Favorites only",
   "Alle Podcasts": "All podcasts",
+  "Nächste automatische Aktualisierung:": "Next automatic update:",
+  "Automatische Feedaktualisierung ist nicht aktiv.":
+    "Automatic feed updates are not active.",
   "Browser-Lautstärke": "Browser volume",
   "MPD-Lautstärke": "MPD volume",
   Aus: "Off",

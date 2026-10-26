@@ -228,7 +228,7 @@ export function renderConfig(this: PlayPodApp) {
       <p class="muted small" style="margin-top:18px">
         ${t("Feedaktualisierung alle")}
         ${Math.round((c?.rss_interval || 3600) / 60)} ${t("Minuten.")}<br />
-        ${c?.rss_last_refresh ? html`${t("Letzte Aktualisierung:")} ${new Date((c.rss_last_refresh.finished || c.rss_last_refresh.created) * 1000).toLocaleString(localeTag())} · ${c.rss_last_refresh.state === "running" ? t("läuft") : c.rss_last_refresh.state === "done" ? (c.rss_last_refresh.errors ? c.rss_last_refresh.errors + t(" Feed(s) fehlgeschlagen") : t("abgeschlossen")) : t("abgebrochen/fehlgeschlagen")}` : t("Noch keine Feedaktualisierung ausgeführt.")}<br />${t("Version")}
+        ${c?.rss_last_refresh ? html`${t("Letzte Aktualisierung:")} ${new Date((c.rss_last_refresh.finished || c.rss_last_refresh.created) * 1000).toLocaleString(localeTag())} · ${c.rss_last_refresh.state === "running" ? t("läuft") : c.rss_last_refresh.state === "done" ? (c.rss_last_refresh.errors ? c.rss_last_refresh.errors + t(" Feed(s) fehlgeschlagen") : t("abgeschlossen")) : t("abgebrochen/fehlgeschlagen")}` : t("Noch keine Feedaktualisierung ausgeführt.")}<br />${c?.rss_next_refresh ? html`${t("Nächste automatische Aktualisierung:")} ${new Date(c.rss_next_refresh * 1000).toLocaleString(localeTag())}<br />` : nothing}${c?.rss_scheduler_running === false ? html`<span class="error-tag">${t("Automatische Feedaktualisierung ist nicht aktiv.")}</span><br />` : nothing}${t("Version")}
         ${c?.version || "…"}
       </p>
       <p class="muted small" style="margin-top:18px">

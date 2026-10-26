@@ -35,3 +35,14 @@ Beim Wechsel im bisherigen Projektverzeichnis bleiben und dasselbe Datenvolume v
 Die PWA lässt sich über das Browsermenü installieren (HTTPS oder localhost). Offline-Audio ist nicht enthalten. Hintergrundwiedergabe und Timer im Browser hängen vom Betriebssystem ab; MPD wird serverseitig gesteuert.
 
 Die vollständige Konfiguration, lokale Verzeichnisse und Entwicklungsbefehle stehen in [README.md](../README.md). [Node-RED/API](../NODE-RED.md), [GitHub-Releases](RELEASING.md).
+
+
+### Automatische Feedaktualisierung
+
+`RSS_INTERVAL_SECONDS` gibt das Intervall in Sekunden an (mindestens 60; 43200 entspricht 720 Minuten bzw. zwölf Stunden). Der Beginn der letzten Gesamtaktualisierung wird gespeichert. Ein Containerneustart setzt die Wartezeit nicht zurück: Ist der Termin überschritten, startet sofort eine Gesamtaktualisierung; andernfalls bleibt der bisherige Termin bestehen. Beim Upgrade ohne gespeicherten Gesamtlauf wird aus den bisherigen Feed-Abrufzeiten geplant. Noch nie geprüfte Feeds machen die erste Aktualisierung sofort fällig.
+
+Ein manueller Gesamtlauf setzt den nächsten Termin neu. Das Aktualisieren nur eines Podcasts verschiebt ihn nicht. Ein bereits laufender Feedauftrag wird abgewartet; der Scheduler prüft spätestens nach einer Minute erneut. Fehler einzelner Feeds bleiben an den Podcasts sichtbar; der nächste reguläre Versuch folgt im eingestellten Intervall. Temporäre Schedulerfehler werden geloggt und nach einer Minute erneut versucht. Ohne RSS-Feeds erfolgt kein automatischer RSS-Auftrag.
+
+Unter **Einstellungen → Technik und Verbindungen** stehen letzter Auftrag, nächster automatischer Termin und gegebenenfalls ein Hinweis auf einen inaktiven Scheduler. „Abgeschlossen“ beschreibt den Auftrag; Fehler einzelner Feeds werden daneben gezählt. Neue automatische Aufträge erscheinen im Log als `Automatische Feedaktualisierung gestartet`.
+
+Beim Neustart unterbrochene Gesamtaktualisierungen werden erneut versucht, ohne ein weiteres komplettes Intervall zu warten.

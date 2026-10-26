@@ -131,3 +131,10 @@ python -m app
 For live UI development run `npm run dev` in `frontend`; requests are proxied to the backend on port 9393. Native installation with Node instead of QuickJS requires `YTDLP_JS_RUNTIME=node`. `python -m app --version` reports the release version.
 
 `sh scripts/compare-images.sh [OLD_IMAGE_TAG]` builds and checks Alpine/Debian separately without using the production volume, then writes local uncompressed image sizes to `build/image-sizes.tsv`. `scripts/smoke_image.py` checks runtime/EJS, API, SQLite, frontend and a real local yt-dlp/FFmpeg download; `--youtube-url URL` optionally checks public YouTube metadata/formats. Full container execution and GHCR publication run in GitHub Actions.
+
+
+### Automatic RSS updates
+
+`RSS_INTERVAL_SECONDS` is measured in seconds (43200 = 720 minutes = 12 hours). PlayPod persists the last full refresh start. Restarting preserves the deadline and immediately catches up an overdue run. On upgrade it uses the oldest existing RSS feed attempt; feeds never checked are immediately due. A manual full refresh resets the deadline; refreshing one podcast does not. Running refresh jobs are allowed to finish, with the scheduler checking again within a minute. Temporary scheduling failures are logged and retried after a minute. Individual feed errors are retried at the regular interval. Settings → Technical details and connections shows the latest job, the next automatic update and an inactive-scheduler warning when applicable.
+
+Interrupted full refresh jobs are retried after restart instead of waiting another interval.
