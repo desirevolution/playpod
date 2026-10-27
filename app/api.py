@@ -338,8 +338,8 @@ def create_app(settings=None, *, mpd=None, notifications=None, background=True):
         return {"items": items, "total": total}
 
     @app.get("/api/v1/episodes/{episode_id}", response_model=EpisodeResult)
-    def episode(episode_id: int):
-        return player.episode(episode_id)
+    def episode(episode_id: int, language: Literal['de', 'en'] | None = None):
+        return youtube.details(episode_id, language) if language else player.episode(episode_id)
 
     @app.delete("/api/v1/episodes/{episode_id}")
     def remove_local_episode(episode_id: int):

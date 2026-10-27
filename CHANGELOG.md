@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Detailsdialog: Schließen-Button bleibt bei langen Titeln rechts oben; Cover wird angezeigt. YouTube-Titel/Beschreibung/Cover werden ohne Audiodownload in der aktuellen App-Sprache nachgeladen und getrennt für Deutsch/Englisch zwischengespeichert. Ladezustand, Wiederholung bei Fehlern und Schutz vor verspäteten Antworten nach Schließen/Sprachwechsel.
 - Abgeschlossene YouTube-Livestream-Aufzeichnungen (was_live/post_live) werden importiert und heruntergeladen; nur Shorts sowie laufende/geplante Streams bleiben ausgeschlossen. Doppelte Auswahlaktion im leeren Player entfernt, Zugang über Warteschlange bleibt. Aussagekräftigere Wiedergabe-Endzustände ohne zusätzlichen Stop-Button.
 
 - YouTube-Abgleich: Leere Altimporte lassen sich durch erneutes Aktualisieren reparieren; entdeckte IDs sind nicht länger pauschal vom späteren Import ausgeschlossen. Absichtlich ausgelassene Videos der Erstimportgrenze werden getrennt gespeichert. Diagnose für leere Sammlungen und konkrete YouTube-Abruffehler.

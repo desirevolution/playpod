@@ -73,10 +73,18 @@ def extract(url, directory, max_bytes, timeout, check, report):
 
 
 def catalog(url, timeout, stop):
+    return _metadata_process(['--catalog', url], timeout, stop)
+
+
+def metadata(url, language, timeout, stop):
+    return _metadata_process(['--metadata', url, language], min(timeout, 25), stop)
+
+
+def _metadata_process(arguments, timeout, stop):
     """Bounded metadata-only child; a partial/failed fetch is never a valid snapshot."""
     import tempfile
     with tempfile.TemporaryFile() as output:
-        process = subprocess.Popen([sys.executable, '-m', 'app.ytdlp_runner', '--catalog', url],
+        process = subprocess.Popen([sys.executable, '-m', 'app.ytdlp_runner', *arguments],
             stdout=output, stderr=subprocess.DEVNULL, start_new_session=True)
         deadline = time.monotonic() + timeout
         try:

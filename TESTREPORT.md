@@ -1,5 +1,13 @@
 # PlayPod 1.0.0 validation
 
+## YouTube episode details and dialog header
+
+- Full backend suite: 309 passed. After limiting parallel detail extraction and shortening its timeout, all 25 YouTube tests passed again. Frontend: 51 passed; TypeScript/Vite production build passed.
+- Tests cover German/English cache separation, escaping YouTube descriptions, retaining current progress/bookmarks with cached metadata, unchanged catalog-only API responses, RSS bypass, validation, retry after extraction failure, and language/no-download options in the actual runner.
+- Live metadata-only extraction of `_fywShwdD6c` with German preference returned “Ihr Ernst, Jan Fleischhauer? – taz Talk über die gegenwärtige Linke”, 3,007 description characters and a thumbnail URL. The local check used system CA trust; certificate validation stayed enabled. No audio downloaded. YouTube warned about unavailable formats, but still returned the requested metadata.
+- Isolated actual Lit dialog checked at 900/390/320px: close button aligned with title top, separate fixed column, no dialog horizontal overflow. Remote image host is blocked in this environment; cover layout uses a local fixture image. This check does not claim a live remote cover was rendered here.
+- Full detail variants stay out of shared playback/catalog state, use a 24-hour bounded persistent cache, and never hold playback locks during extraction. At most two detail extraction subprocesses run concurrently; each is bounded to 25 seconds or the configured shorter yt-dlp limit.
+
 ## Local checks
 
 - Backend: 268 tests passed in a full run, followed by 57 targeted custom/mode announcement checks after adding favorite speech to the batch (269 current tests covered). Includes activity import summaries, insertion deduplication, completion retries/replays, retention, deletion snapshots, cursor pagination, unseen counts, exact episode locations and schema-5 migration/backup. One existing Starlette/httpx deprecation warning.

@@ -14,8 +14,8 @@ export function renderDialog(this: PlayPodApp) {
     }}
     aria-labelledby="dialog-title"
   >
-    <div class="row spread" style="margin:0 0 15px">
-      <h2 id="dialog-title" style="margin:0">
+    <div class="dialog-header">
+      <h2 id="dialog-title">
         ${d?.kind === "link" ? t("YouTube importieren") : d?.kind === "details" ? e?.title : d?.kind === "feed" ? (d.feed ? t("Podcast bearbeiten") : t("Podcast hinzufügen")) : d?.kind === "cleanup" ? t("Nicht erreichbare Episoden") : d?.title}
       </h2>
       <button
@@ -31,8 +31,11 @@ export function renderDialog(this: PlayPodApp) {
         ? linkForm.call(this)
         : d?.kind === "details" && e
           ? html`<p class="eyebrow">${e.podcast} · ${fmt(e.duration)}</p>
-              <div class="shownotes">
-                ${e.description ? unsafeHTML(e.description) : html`<p>${t("Keine Beschreibung vorhanden.")}</p>`}
+              ${e.cover || e.feed_cover ? html`<div class="details-cover">${this.cover(e, true)}</div>` : nothing}
+              ${d.loading ? html`<p class="small muted" role="status">${t("YouTube-Details werden geladen …")}</p>` : nothing}
+              ${d.detailsError ? html`<p class="small muted" role="status">${t(d.detailsError)} <button class="ghost" @click=${() => void this.loadEpisodeDetails(d)}>${t("Erneut versuchen")}</button></p>` : nothing}
+              <div class="shownotes" aria-busy=${!!d.loading}>
+                ${e.description ? unsafeHTML(e.description) : !d.loading ? html`<p>${t("Keine Beschreibung vorhanden.")}</p>` : nothing}
               </div>
               ${
                 e.source_type === "web"

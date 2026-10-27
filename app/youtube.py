@@ -1,5 +1,7 @@
 """YouTube catalog subscriptions. Network scans never hold playback/database locks."""
 import logging
+import html
+import threading
 import time
 from urllib.parse import urlsplit, parse_qs
 
@@ -43,6 +45,11 @@ def thumbnail(item):
     return ''
 
 
+def description(item):
+    text = str(item.get('description') or '')[:20000]
+    return '<p>' + html.escape(text).replace('\n', '<br>') + '</p>' if text else ''
+
+
 def allowed(item):
     url = item.get('webpage_url') or item.get('url') or ''
     return not (item.get('is_live') or
@@ -53,6 +60,42 @@ def allowed(item):
 class YouTubeCatalog:
     def __init__(self, db, downloads, player):
         self.db, self.downloads, self.player = db, downloads, player
+        self.metadata_lock = threading.Lock()
+        self.metadata_slots = threading.BoundedSemaphore(2)
+
+    def details(self, episode_id, language):
+        ep = self.player.episode(episode_id)
+        host = (urlsplit(ep['url']).hostname or '').lower()
+        if ep.get('source_type') != 'web' or host not in ('youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be', 'music.youtube.com'):
+            return ep
+        if not self.downloads.ytdlp_enabled:
+            return {**ep, 'metadata_error': 'YouTube-Details sind nicht verfügbar.'}
+        # Separate language variants never overwrite the shared catalog/listening state.
+        # Bounded persistent cache; no player/download/database lock during extraction.
+        key = language + ':' + ep['url']
+        now = time.time()
+        with self.metadata_lock:
+            cache = self.db.get('yt_details_cache') or {}
+            cached = cache.get(key)
+        if not cached or now - cached['checked'] > 86400:
+            if not self.metadata_slots.acquire(blocking=False):
+                return {**ep, 'metadata_error': 'YouTube-Details konnten nicht geladen werden.'}
+            try:
+                item = ytdlp.metadata(ep['url'], language, self.downloads.ytdlp_timeout, self.downloads.stop)
+            except Exception:
+                log.warning('YouTube-Details für Episode %s konnten nicht geladen werden', episode_id, exc_info=True)
+                return {**self.player.episode(episode_id), 'metadata_error': 'YouTube-Details konnten nicht geladen werden.'}
+            finally:
+                self.metadata_slots.release()
+            cached = {'checked': now, 'title': str(item.get('title') or '')[:1000],
+                      'description': description(item), 'cover': thumbnail(item)}
+            with self.metadata_lock:
+                cache = self.db.get('yt_details_cache') or {}
+                cache[key] = cached
+                cache = dict(sorted(cache.items(), key=lambda pair: pair[1]['checked'])[-128:])
+                self.db.put('yt_details_cache', cache)
+        ep = self.player.episode(episode_id)  # Do not return deleted/stale progress after network I/O.
+        return {**ep, **{field: cached[field] or ep[field] for field in ('title', 'description', 'cover')}}
 
     def add(self, url, kind, limit):
         if not self.downloads.ytdlp_enabled:
@@ -139,6 +182,8 @@ class YouTubeCatalog:
                         id_ = conn.execute("INSERT INTO episodes(feed_id,source_key,title,url,cover,duration,published,source_present,availability,source_type) VALUES(?,?,?,?,?,?,?,?,?,'web')", (feed_id, key, *values)).lastrowid
                         record(conn, 'episode_added', episode_id=id_)
                         added += 1
+                    if item.get('description'):
+                        conn.execute('UPDATE episodes SET description=? WHERE feed_id=? AND source_key=?', (description(item), feed_id, key))
                 conn.execute("UPDATE feeds SET title=?,cover=?,last_success=?,error='' WHERE id=?", (str(snapshot.get('title') or feed['title']), thumbnail(snapshot), time.time(), feed_id))
             # Missing remote entries remain playable as long as a local copy exists.
             for key, ep in existing.items():

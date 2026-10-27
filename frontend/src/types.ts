@@ -19,6 +19,7 @@ export type Episode = {
   availability: string;
   check_error: string;
   queue_error?: string;
+  metadata_error?: string;
   local_source: string | null;
   media_root_id: number | null;
   source_present: number;
@@ -119,6 +120,8 @@ export type DialogState = {
   title?: string;
   body?: string;
   confirm?: () => Promise<void>;
+  loading?: boolean;
+  detailsError?: string;
 };
 
 export type Download = {

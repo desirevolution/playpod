@@ -1,5 +1,10 @@
 // German source messages are lookup keys; keep placeholders identical in all languages.
 export const english: Record<string, string> = {
+  "YouTube-Details werden geladen …": "Loading YouTube details …",
+  "YouTube-Details konnten nicht geladen werden.":
+    "YouTube details could not be loaded.",
+  "YouTube-Details sind nicht verfügbar.": "YouTube details are unavailable.",
+  "Erneut versuchen": "Try again",
   "Wiedergabe beendet": "Playback finished",
   "Keine Wiedergabe": "No playback",
 

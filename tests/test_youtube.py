@@ -11,6 +11,67 @@ def video(id_, **extra):
             'duration': 120, 'thumbnail': 'https://i.ytimg.com/' + id_ + '.jpg', **extra}
 
 
+def test_localized_details_cache_is_language_specific_and_does_not_change_catalog(yt, monkeypatch):
+    c, _, db, _, _, _, _, add = yt
+    feed = add()
+    ep = db.one('SELECT * FROM episodes WHERE feed_id=?', (feed,))
+    calls = []
+    def metadata(url, language, *args):
+        calls.append((url, language))
+        return {'title': 'Deutscher Titel' if language == 'de' else 'English title',
+                'description': 'Text <script>unsafe</script>\nZeile 2',
+                'thumbnail': 'https://i.ytimg.com/details.jpg'}
+    monkeypatch.setattr('app.ytdlp.metadata', metadata)
+    url = f"/api/v1/episodes/{ep['id']}"
+    localized = c.get(url + '?language=de').json()
+    assert localized['title'] == 'Deutscher Titel'
+    assert localized['cover'].endswith('details.jpg')
+    assert '&lt;script&gt;' in localized['description'] and '<br>' in localized['description']
+    assert c.get(url + '?language=en').json()['title'] == 'English title'
+    db.execute('UPDATE episodes SET bookmarked=1,position=42 WHERE id=?', (ep['id'],))
+    cached = c.get(url + '?language=de').json()
+    assert cached['bookmarked'] == 1 and cached['position'] == 42
+    assert len(calls) == 2
+    assert c.get(url).json()['title'] == ep['title']
+    assert c.get(url + '?language=fr').status_code == 422
+    # RSS details never invoke yt-dlp, even when a language was supplied.
+    assert c.get('/api/v1/episodes/1?language=de').status_code == 200
+    assert len(calls) == 2
+
+
+def test_details_failure_keeps_existing_metadata_and_can_retry(yt, monkeypatch):
+    c, _, db, _, _, _, _, add = yt
+    feed = add()
+    ep = db.one('SELECT * FROM episodes WHERE feed_id=?', (feed,))
+    def fail(*args): raise ValueError('offline')
+    monkeypatch.setattr('app.ytdlp.metadata', fail)
+    url = f"/api/v1/episodes/{ep['id']}?language=de"
+    result = c.get(url).json()
+    assert result['title'] == ep['title'] and result['metadata_error']
+    monkeypatch.setattr('app.ytdlp.metadata', lambda *args: {'title': 'Wieder verfügbar'})
+    assert c.get(url).json()['title'] == 'Wieder verfügbar'
+
+
+def test_metadata_runner_requests_language_without_downloading(monkeypatch, capsys):
+    import json
+    from app import ytdlp_runner
+    class Extractor:
+        def __init__(self, options):
+            assert options['extractor_args']['youtube']['lang'] == ['de']
+            assert options['skip_download'] and options['noplaylist']
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def extract_info(self, url, download):
+            assert download is False
+            return {'title': 'Titel', 'description': 'Beschreibung',
+                    'thumbnails': [{'url': 'https://example.test/cover.jpg'}]}
+    monkeypatch.setattr('yt_dlp.YoutubeDL', Extractor)
+    monkeypatch.setattr(ytdlp_runner, 'javascript_options', lambda: {})
+    ytdlp_runner.metadata('https://youtube.com/watch?v=abcdefghijk', 'de')
+    result = json.loads(capsys.readouterr().out)
+    assert result['description'] == 'Beschreibung' and result['thumbnails']
+
+
 @pytest.fixture
 def yt(rig, monkeypatch):
     c, p, db, mpd, _ = rig

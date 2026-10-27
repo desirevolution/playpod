@@ -50,6 +50,8 @@ Beim Neustart unterbrochene Gesamtaktualisierungen werden erneut versucht, ohne 
 
 ### YouTube-Importe und Sammlungen
 
+Der Detailsdialog lädt vollständige YouTube-Titel, Beschreibung und Cover bei Bedarf in der aktuellen App-Sprache (Deutsch/Englisch), ohne die Audiospur herunterzuladen. Sprachfassungen werden 24 Stunden getrennt zwischengespeichert (maximal 128 Einträge). Fehlt eine Übersetzung, bleibt die von YouTube verfügbare Fassung erhalten. Gemeinsamer Katalog und Hörfortschritt werden dadurch nicht überschrieben. Während des Ladens lässt sich der Dialog schließen; bei Fehlern bleiben gespeicherte Angaben erhalten und „Erneut versuchen“ ist möglich. API: `GET /api/v1/episodes/{id}?language=de|en`; ohne Parameter bleibt die bisherige Antwort unverändert.
+
 In **Bibliothek → Import** gibt es die Importarten Einzelvideo, YouTube-Playlist und YouTube-Kanal. Einzelimporte starten sofort einen Download und erscheinen unter **YouTube · Einzelimporte**. Playlists und Kanäle bilden eigene Sammlungen mit Herkunftskennzeichnung und Vorschaubildern. Sie werden im gleichen Intervall wie RSS (`RSS_INTERVAL_SECONDS`) geprüft, ohne automatisch Audiodateien herunterzuladen.
 
 Beim ersten Import kann eine Anzahl (Vorgabe 50) oder „Alle“ gewählt werden. Kanäle verwenden ihre neuesten Videos, Playlists die Playlist-Reihenfolge. Der erste Abgleich merkt sich auch die zunächst nicht importierten IDs: Spätere Prüfungen ergänzen neue Videos und laden nicht ungefragt den restlichen alten Katalog nach. Shorts sowie laufende und geplante Livestreams werden ausgeschlossen. Abgeschlossene Livestream-Aufzeichnungen sind erlaubt. Private/gelöschte Einträge werden nicht neu importiert. Ein gescheiterter oder erkennbar unvollständiger Abruf darf keine Einträge entfernen.

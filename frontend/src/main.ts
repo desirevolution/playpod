@@ -4,6 +4,7 @@ import {
   applyLanguage,
   setLanguage,
   getLanguagePreference,
+  getLocale,
   localizeMessage,
 } from "./i18n";
 import type {
@@ -216,6 +217,8 @@ export class PlayPodApp extends LitElement {
   }
   onLanguage = () => {
     this.requestUpdate();
+    if (this.dialog?.kind === "details")
+      void this.loadEpisodeDetails(this.dialog);
   };
   onSystemLanguage = () => {
     if (getLanguagePreference() === "auto") setLanguage("auto");
@@ -581,6 +584,31 @@ export class PlayPodApp extends LitElement {
     await this.updateComplete;
     this.querySelector("dialog")?.showModal();
   }
+  async loadEpisodeDetails(d: DialogState) {
+    if (d.episode?.source_type !== "web") return;
+    const language = getLocale();
+    const pending = { ...d, loading: true, detailsError: "" };
+    this.dialog = pending;
+    try {
+      const episode = await this.api<Episode>(
+        `episodes/${d.episode.id}?language=${language}`,
+      );
+      if (this.dialog === pending && getLocale() === language)
+        this.dialog = {
+          ...pending,
+          episode,
+          loading: false,
+          detailsError: episode.metadata_error || "",
+        };
+    } catch {
+      if (this.dialog === pending && getLocale() === language)
+        this.dialog = {
+          ...pending,
+          loading: false,
+          detailsError: "YouTube-Details konnten nicht geladen werden.",
+        };
+    }
+  }
   close() {
     this.querySelector("dialog")?.close();
     this.dialog = null;
@@ -724,6 +752,7 @@ export class PlayPodApp extends LitElement {
       case "details": {
         const ep = await this.api<Episode>("episodes/" + id);
         await this.open({ kind: "details", episode: ep });
+        void this.loadEpisodeDetails(this.dialog!);
         break;
       }
       case "favorite": {

@@ -71,6 +71,24 @@ def run(url, directory, max_bytes):
         ydl.process_ie_result(info, download=True)
 
 
+def metadata(url, language):
+    from yt_dlp import YoutubeDL
+    if language not in ('de', 'en'):
+        raise ValueError('Ungültige Metadatensprache')
+    options = {'quiet': True, 'skip_download': True, 'noplaylist': True,
+               'cachedir': False, 'socket_timeout': 10, 'retries': 0,
+               'extractor_retries': 0, 'ignore_no_formats_error': True,
+               'extractor_args': {'youtube': {'lang': [language], 'skip': ['hls', 'dash']}},
+               'js_runtimes': javascript_options()}
+    with YoutubeDL(options) as ydl:
+        info = ydl.extract_info(url, download=False)
+        if not info or info.get('_type') in ('playlist', 'multi_video'):
+            raise ValueError('Keine Videodetails erhalten')
+        emit('catalog', title=str(info.get('title') or '')[:1000],
+             description=str(info.get('description') or '')[:20000],
+             thumbnail=info.get('thumbnail') or '', thumbnails=info.get('thumbnails') or [])
+
+
 def catalog(url):
     from yt_dlp import YoutubeDL
     # Flat extraction reads catalog metadata/thumbnails without audio or per-video formats.
@@ -90,7 +108,7 @@ def catalog(url):
                 raise ValueError('Bitte den Videos-Bereich des Kanals verwenden')
             entries.append({key: item.get(key) for key in
                 ('id','url','webpage_url','title','duration','timestamp','release_timestamp',
-                 'thumbnails','thumbnail','live_status','is_live','was_live','media_type','availability')})
+                 'description','thumbnails','thumbnail','live_status','is_live','was_live','media_type','availability')})
         if not entries and (info.get('playlist_count') or info.get('n_entries') or 0) > 0:
             raise ValueError('YouTube meldet Videos, aber die Eintragsliste ist leer. Bitte erneut aktualisieren.')
         emit('catalog', title=info.get('title') or url,
@@ -101,6 +119,8 @@ if __name__ == '__main__':
     try:
         if sys.argv[1] == '--catalog':
             catalog(sys.argv[2])
+        elif sys.argv[1] == '--metadata':
+            metadata(sys.argv[2], sys.argv[3])
         else:
             run(sys.argv[1], sys.argv[2], int(sys.argv[3]))
     except Exception as exc:
