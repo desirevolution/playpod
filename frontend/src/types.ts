@@ -33,6 +33,15 @@ export type Feed = {
   error: string;
   episode_count: number;
   kind: "rss" | "local" | "links" | "yt_playlist" | "yt_channel";
+  import_status?: {
+    found: number;
+    eligible: number;
+    excluded: number;
+    unavailable: number;
+    initial_limit_skipped: number;
+    added: number;
+    stored: number;
+  } | null;
 };
 export type PlayerState = {
   phase: "announcement" | "episode";

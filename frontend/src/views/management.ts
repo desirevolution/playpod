@@ -111,6 +111,7 @@ export function renderManagement(this: PlayPodApp) {
           ${selected ? feedActions.call(this, selected) : html`<button class="ghost small" data-action="cleanup">${t("Quellen prüfen")}</button>`}
         </div>
         ${selected?.error ? html`<p class="notice error-tag">${localizeMessage(selected.error)}</p>` : nothing}
+        ${selected?.import_status && !selected.error && !selected.episode_count ? html`<p class="notice" role="status">${t("YouTube-Abgleich: {found} Einträge gefunden · {excluded} Shorts/aktive oder geplante Livestreams ausgeschlossen · {unavailable} nicht verfügbar · {initial_limit_skipped} durch Importgrenze ausgelassen.", selected.import_status)}</p>` : nothing}
         <div class="tabs" aria-label=${t("Episoden filtern")}>
           ${[
             ["all", t("Alle")],

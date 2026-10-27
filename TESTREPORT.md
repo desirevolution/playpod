@@ -105,3 +105,16 @@ Manuelles „Nächste“ erhält Timer-Restzeit und Verlängerungen; Titelgeneri
 Validierung: vollständiger Backend-Lauf 293 bestanden; 51 Frontend-Tests bestanden; TypeScript/Vite-Build und Versionsprüfung erfolgreich. Neue/angepasste Tests prüfen leeren Random-Start mit beiden Zufallsvorgaben, Toggle ohne Autoplay/Timeränderung, Next mit Restzeit/Verlängerung/pausiertem und abgelaufenem Timer, explizite Default-Auswahl und eingefrorene Restzeit bei Titelansagen.
 
 Browser-QA mit tatsächlichen Lit-Ansichten und isolierten Daten: leerer Player an 1440,1024,768,390 und320px ohne horizontales Überlaufen geprüft, Zielsteuerung ausschließlich im Player; Wechsel zur Bibliothek zeigt keine playback-target-Elemente. Random-Schalter aktiviert Play ohne aktuelle Episode. Desktop-Darstellung visuell geprüft und Vorschau gesichert. Temporäre Testseiten entfernt. Keine echten MPD-Lautsprecher/Node-RED-Instanz in dieser Layoutprüfung.
+
+
+### Playlist ohne Episoden: Diagnose, Reparatur und abgeschlossene Live-Aufzeichnungen
+
+Der echte Abruf der Nutzer-Playlist PLk1UcPoGUW95LR2oTKeGEZRkrNiEvN0GP liefert Titel „podsync“ und genau einen Eintrag (_fywShwdD6c, 4361 Sekunden) mit live_status=was_live. Der bisherige Filter verwarf ihn absichtlich als Livestream-Aufzeichnung. Nach der bestätigten Verhaltensänderung werden was_live/post_live bzw. abgeschlossene Aufzeichnungen zugelassen; nur positiv laufende/geplante Streams und Shorts ausgeschlossen. Der Downloadrunner verwendet denselben Filter wie der Katalog. Kein tatsächlicher Audio-Download des Nutzer-Videos während dieser Prüfung.
+
+Verifikation gegen den echten Link: Metadaten direkt mit dem yt-dlp-Kollektor abgerufen und dessen tatsächlicher JSON-Snapshot durch den normalen YouTubeCatalog-/SQLite-Pfad einer temporären Installation verarbeitet: genau 1 Episode mit Dauer 4361, source_type web, 0 Downloads. In der Testumgebung waren System-CA-Zertifikate statt des yt-dlp-certifi-Bundles nötig; Zertifikatsprüfung blieb eingeschaltet. Die Produktionseinstellungen wurden dafür nicht verändert.
+
+Zusätzlich den getrennt gefundenen Wiederholungsimportfehler behoben: Gesehene IDs bedeuten nicht automatisch importiert. Absichtlich durch Erstimportgrenzen ausgelassene IDs erhalten eigenen persistenten Status. Alte leere Kataloge können sich beim Aktualisieren erholen, nachträglich verfügbare Videos werden importiert, gefüllte Alt-Kataloge behalten ihre Grenzen. Einträge-/Filterzähler für leere Sammlungen und konkrete YouTube-Fehler sichtbar, erfolgreiche Abgleiche protokolliert. Leere Kollektorergebnisse bei positiv gemeldeter Videoanzahl werden verworfen.
+
+Validierung: vollständiger 299er-Backendlauf nach der Wiederholungsimportreparatur erfolgreich. Danach 22 YouTube-Tests (inklusive 7 zusätzlicher Aufzeichnungs-/Downloadfilterfälle) und 28 Feed-/Download-/Scheduler-/Katalogtests erfolgreich. 51 Frontend-Tests, TypeScript/Vite-Build und Versionsprüfung erfolgreich. Kein behaupteter vollständiger Lauf der inzwischen 306 Backendtests.
+
+UX: redundanten Episoden-Auswahlbutton im leeren Player entfernt, der Zugang über die Warteschlange bleibt. Kein zusätzlicher Stop-Befehl; UI benennt Ende einer abgeschlossenen Episode „Wiedergabe beendet“, leeren/stillstehenden Player „Keine Wiedergabe“. Keine Änderung der API-State-Werte.

@@ -1,5 +1,5 @@
 """YouTube catalog subscriptions. Network scans never hold playback/database locks."""
-import html
+import logging
 import time
 from urllib.parse import urlsplit, parse_qs
 
@@ -9,6 +9,7 @@ from .feeds import web_url
 from .player import PlayerError
 
 KINDS = ('yt_playlist', 'yt_channel')
+log = logging.getLogger(__name__)
 
 
 def collection_url(url, kind):
@@ -44,9 +45,9 @@ def thumbnail(item):
 
 def allowed(item):
     url = item.get('webpage_url') or item.get('url') or ''
-    return not (item.get('is_live') or item.get('was_live') or
-                item.get('live_status') not in (None, 'not_live') or
-                item.get('media_type') in ('short', 'livestream') or '/shorts/' in url)
+    return not (item.get('is_live') or
+                item.get('live_status') in ('is_live', 'is_upcoming') or
+                item.get('media_type') == 'short' or '/shorts/' in url)
 
 
 class YouTubeCatalog:
@@ -94,14 +95,23 @@ class YouTubeCatalog:
             raise ValueError('Unvollständige YouTube-Liste: Eintrag ohne ID')
         seen = {str(item['id']) for item in entries}
         previous = self.db.get(f'yt_seen:{feed_id}')
-        initial = previous is None
         previous = set(previous or [])
         existing = {row['source_key']: row for row in self.db.rows('SELECT * FROM episodes WHERE feed_id=?', (feed_id,))}
         eligible = [item for item in entries if allowed(item)]
-        if initial and feed['import_limit'] is not None:
-            initial_ids = {str(item['id']) for item in eligible[:feed['import_limit']]}
-        else:
-            initial_ids = seen
+        def available(item):
+            return item.get('availability') not in ('private', 'premium_only', 'subscriber_only', 'needs_auth', 'unavailable') and item.get('title') not in ('[Deleted video]', '[Private video]')
+        importable = [item for item in eligible if available(item)]
+        skipped = self.db.get(f'yt_skipped:{feed_id}')
+        if skipped is None:
+            if not existing:
+                # Also repair an earlier empty import: "seen" is not proof of import.
+                selected = importable if feed['import_limit'] is None else importable[:feed['import_limit']]
+                selected_ids = {str(item['id']) for item in selected}
+                skipped = {str(item['id']) for item in importable} - selected_ids
+            else:
+                # Preserve deliberate old initial limits when upgrading populated catalogs.
+                skipped = previous - {key.removeprefix('youtube:') for key in existing} if feed['import_limit'] is not None else set()
+        skipped = set(skipped) & seen
         added = 0
         with self.player.lock, self.downloads.lock:
             # Deleting a subscription while fetching must not recreate it.
@@ -111,20 +121,20 @@ class YouTubeCatalog:
                 for item in eligible:
                     video_id = str(item['id'])
                     key = 'youtube:' + video_id
-                    if key not in existing and (video_id not in initial_ids or (not initial and video_id in previous)):
+                    if key not in existing and video_id in skipped:
                         continue
                     raw_url = item.get('webpage_url') or item.get('url') or ''
                     url = raw_url if raw_url.startswith('https://') else 'https://www.youtube.com/watch?v=' + video_id
                     title = str(item.get('title') or video_id)
-                    available = item.get('availability') not in ('private', 'premium_only', 'subscriber_only', 'needs_auth', 'unavailable') and title not in ('[Deleted video]', '[Private video]')
-                    if not available and key not in existing:
+                    is_available = available(item)
+                    if not is_available and key not in existing:
                         continue
-                    if not available and key in existing:
+                    if not is_available and key in existing:
                         title = existing[key]['title']
                     published = item.get('timestamp') or item.get('release_timestamp')
-                    values = (title, url, thumbnail(item), item.get('duration') or 0, published, int(available), 'unchecked' if available else 'unreachable')
+                    values = (title, url, thumbnail(item), item.get('duration') or 0, published, int(is_available), 'unchecked' if is_available else 'unreachable')
                     if key in existing:
-                        conn.execute('UPDATE episodes SET title=?,url=?,cover=CASE WHEN length(?)>0 THEN ? ELSE cover END,duration=CASE WHEN ?>0 THEN ? ELSE duration END,published=COALESCE(?,published),source_present=?,availability=? WHERE id=?', (title, url, values[2], values[2], values[3], values[3], published, int(available), values[6], existing[key]['id']))
+                        conn.execute('UPDATE episodes SET title=?,url=?,cover=CASE WHEN length(?)>0 THEN ? ELSE cover END,duration=CASE WHEN ?>0 THEN ? ELSE duration END,published=COALESCE(?,published),source_present=?,availability=? WHERE id=?', (title, url, values[2], values[2], values[3], values[3], published, int(is_available), values[6], existing[key]['id']))
                     else:
                         id_ = conn.execute("INSERT INTO episodes(feed_id,source_key,title,url,cover,duration,published,source_present,availability,source_type) VALUES(?,?,?,?,?,?,?,?,?,'web')", (feed_id, key, *values)).lastrowid
                         record(conn, 'episode_added', episode_id=id_)
@@ -141,4 +151,12 @@ class YouTubeCatalog:
                         continue
                     self.player.delete_episodes([ep['id']])
             self.db.put(f'yt_seen:{feed_id}', sorted(seen))
+            self.db.put(f'yt_skipped:{feed_id}', sorted(skipped))
+            status = {'checked': time.time(), 'found': len(entries), 'eligible': len(importable),
+                      'excluded': len(entries) - len(eligible), 'unavailable': len(eligible) - len(importable),
+                      'initial_limit_skipped': len(skipped), 'added': added,
+                      'stored': self.db.one('SELECT COUNT(*) n FROM episodes WHERE feed_id=?', (feed_id,))['n']}
+            self.db.put(f'yt_status:{feed_id}', status)
+            log.info('YouTube-Sammlung %s: gefunden=%s geeignet=%s ausgeschlossen=%s nicht_verfügbar=%s Importgrenze=%s neu=%s gespeichert=%s',
+                     feed_id, status['found'], status['eligible'], status['excluded'], status['unavailable'], len(skipped), added, status['stored'])
         return added

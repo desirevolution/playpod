@@ -89,9 +89,9 @@ class FeedJobs:
                     try:
                         count = self.youtube.refresh(row["id"]) if row["kind"].startswith("yt_") else self.refresh(row["id"], row["url"])
                         results.append({"id": row["id"], "ok": True, "count": count})
-                    except Exception:
+                    except Exception as exc:
                         log.warning("Feed %s konnte nicht aktualisiert werden", row["id"], exc_info=True)
-                        message = "Feed nicht erreichbar oder ungültig"
+                        message = ("YouTube-Abgleich: " + str(exc)[:500]) if row['kind'].startswith('yt_') else "Feed nicht erreichbar oder ungültig"
                         self.db.execute("UPDATE feeds SET error=? WHERE id=?", (message, row["id"]))
                         results.append({"id": row["id"], "ok": False, "error": message})
                 else:

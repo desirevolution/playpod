@@ -64,8 +64,9 @@ def run(url, directory, max_bytes):
         info = ydl.extract_info(url, download=False)
         if not info or info.get('_type') in ('playlist', 'multi_video') or info.get('entries') is not None:
             raise ValueError('Bitte einen einzelnen Episoden-/Videolink statt einer Playlist oder eines Kanals angeben')
-        if info.get('is_live') or info.get('live_status') == 'is_upcoming' or info.get('media_type') in ('short', 'livestream'):
-            raise ValueError('Shorts und Livestreams werden nicht importiert')
+        from .youtube import allowed
+        if not allowed(info):
+            raise ValueError('Shorts sowie laufende oder geplante Livestreams werden nicht importiert')
         ydl.add_post_processor(Completed(), when='after_move')
         ydl.process_ie_result(info, download=True)
 
@@ -90,6 +91,8 @@ def catalog(url):
             entries.append({key: item.get(key) for key in
                 ('id','url','webpage_url','title','duration','timestamp','release_timestamp',
                  'thumbnails','thumbnail','live_status','is_live','was_live','media_type','availability')})
+        if not entries and (info.get('playlist_count') or info.get('n_entries') or 0) > 0:
+            raise ValueError('YouTube meldet Videos, aber die Eintragsliste ist leer. Bitte erneut aktualisieren.')
         emit('catalog', title=info.get('title') or url,
              thumbnails=info.get('thumbnails') or [], thumbnail=info.get('thumbnail') or '', entries=entries)
 

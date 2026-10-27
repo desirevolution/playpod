@@ -95,7 +95,7 @@ services:
 
 Scan them from Settings. Removing a local library entry does not delete its file. `compose.media.yml` provides a single-folder example using `MEDIA_DIRECTORY`. Its mount target must also be included in `MEDIA_ROOTS`.
 
-Downloads run inside the same container. yt-dlp imports single video/audio links and metadata-only YouTube playlist/channel subscriptions. Shorts and livestreams are excluded. Deleting a downloaded copy preserves the episode, bookmarks and progress. Orphan cleanup affects only managed download files. Files still referenced by MPD are protected. Third-party site availability depends on yt-dlp and the source site.
+Downloads run inside the same container. yt-dlp imports single video/audio links and metadata-only YouTube playlist/channel subscriptions. Shorts and active or scheduled livestreams are excluded; completed recordings are allowed. Deleting a downloaded copy preserves the episode, bookmarks and progress. Orphan cleanup affects only managed download files. Files still referenced by MPD are protected. Third-party site availability depends on yt-dlp and the source site.
 
 ## Playback targets and PWA
 
@@ -149,3 +149,6 @@ Adding a YouTube episode to the queue or marking it for later starts an idempote
 Individual imports can be removed with their files, or just their local copy can be deleted. Playlist/channel items can be hidden/unhidden, rather than manually deleted. Deleting a YouTube collection removes all its entries and managed audio files after confirmation; duplicate copies in other collections are independent. In-use browser downloads must first be released. External media directories are never deleted. Thumbnails are remote image URLs; playback still uses downloaded audio.
 
 Database schema 6 adds import limits and hidden flags; upgrading an existing database creates a `.before-v6.sqlite3` backup. Older application versions cannot open schema 6.
+
+
+Empty legacy YouTube imports can recover by refreshing the existing collection after updating. Discovered IDs and deliberately omitted initial-limit IDs are now tracked separately. Later-public videos can be imported without treating them as already imported. Empty collections expose import counts and concrete extraction errors in the library; successful checks log found/excluded/unavailable/limited/added/stored counts. A collector result with no entries but a positive declared video count is rejected rather than used for removals.

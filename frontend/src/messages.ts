@@ -1,5 +1,11 @@
 // German source messages are lookup keys; keep placeholders identical in all languages.
 export const english: Record<string, string> = {
+  "Wiedergabe beendet": "Playback finished",
+  "Keine Wiedergabe": "No playback",
+
+  "YouTube-Abgleich: {found} Einträge gefunden · {excluded} Shorts/aktive oder geplante Livestreams ausgeschlossen · {unavailable} nicht verfügbar · {initial_limit_skipped} durch Importgrenze ausgelassen.":
+    "YouTube check: {found} entries found \u00b7 {excluded} Shorts/active or scheduled livestreams excluded \u00b7 {unavailable} unavailable \u00b7 {initial_limit_skipped} omitted by the initial limit.",
+
   "Bereit zum Abspielen": "Ready to play",
   "Play startet die Warteschlange oder eine passende zufällige Episode.":
     "Play starts the queue or a matching random episode.",
@@ -28,8 +34,8 @@ export const english: Record<string, string> = {
   "YouTube importieren": "Import YouTube",
   "Sammlung hinzugefügt. Einträge werden ohne Download eingelesen.":
     "Collection added. Entries are imported without downloading audio.",
-  "Einzelimporte werden direkt heruntergeladen. Playlists und Kanäle werden regelmäßig ohne Audiodownload eingelesen. Shorts und Livestreams werden ausgeschlossen.":
-    "Single imports are downloaded immediately. Playlists and channels are checked regularly without downloading audio. Shorts and livestreams are excluded.",
+  "Einzelimporte werden direkt heruntergeladen. Playlists und Kanäle werden regelmäßig ohne Audiodownload eingelesen. Shorts sowie laufende oder geplante Livestreams werden ausgeschlossen. Aufzeichnungen sind erlaubt.":
+    "Single imports are downloaded immediately. Playlists and channels are checked regularly without downloading audio. Shorts and active or scheduled livestreams are excluded. Recordings are allowed.",
   Importart: "Import type",
   "Einzelnes Video": "Single video",
   "YouTube-Playlist": "YouTube playlist",

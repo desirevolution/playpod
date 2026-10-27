@@ -268,7 +268,7 @@ function linkForm(this: PlayPodApp) {
     }}
   >
     <p class="muted small">
-      ${t("Einzelimporte werden direkt heruntergeladen. Playlists und Kanäle werden regelmäßig ohne Audiodownload eingelesen. Shorts und Livestreams werden ausgeschlossen.")}
+      ${t("Einzelimporte werden direkt heruntergeladen. Playlists und Kanäle werden regelmäßig ohne Audiodownload eingelesen. Shorts sowie laufende oder geplante Livestreams werden ausgeschlossen. Aufzeichnungen sind erlaubt.")}
     </p>
     <label
       >${t("Importart")}<select

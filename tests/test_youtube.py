@@ -56,7 +56,7 @@ def test_initial_limit_thumbnails_and_new_only_periodic_import(yt):
 
 def test_short_live_private_exclusion_and_duplicates_between_collections(yt):
     _, _, db, _, _, catalog, snapshot, add = yt
-    snapshot['entries'] += [video('short', url='https://www.youtube.com/shorts/short'), video('live', live_status='is_live'), video('oldlive', live_status='was_live'), video('private', availability='private')]
+    snapshot['entries'] += [video('short', url='https://www.youtube.com/shorts/short'), video('live', live_status='is_live'), video('upcoming', live_status='is_upcoming'), video('private', availability='private')]
     first, second = add(key='PL1'), add(key='PL2')
     assert db.one('SELECT COUNT(*) n FROM episodes WHERE feed_id IN (?,?)', (first, second))['n'] == 6
     assert len(db.rows("SELECT id FROM episodes WHERE source_key='youtube:one'")) == 2
@@ -170,3 +170,139 @@ def test_collection_urls_are_explicit_and_channel_normalizes_to_videos():
     assert collection_url('https://youtube.com/watch?v=abc&list=PL1', 'yt_playlist').endswith('playlist?list=PL1')
     for url in ['https://other.test/playlist?list=PL1', 'https://youtube.com/watch?v=abc']:
         with pytest.raises(ValueError): collection_url(url, 'yt_channel')
+
+
+def test_legacy_empty_playlist_recovers_on_refresh_without_readding(yt):
+    c, _, db, _, _, catalog, snapshot, add = yt
+    feed = add(limit=1)
+    # Previous versions could mark every discovered ID seen despite importing none.
+    db.execute('DELETE FROM episodes WHERE feed_id=?', (feed,))
+    db.execute('DELETE FROM settings WHERE key=?', (f'yt_skipped:{feed}',))
+    assert db.get(f'yt_seen:{feed}') == ['one', 'three', 'two']
+    assert catalog.refresh(feed) == 1
+    assert db.one('SELECT title FROM episodes WHERE feed_id=?', (feed,))['title'] == 'Video one'
+    catalog.refresh(feed)
+    assert db.one('SELECT COUNT(*) n FROM episodes WHERE feed_id=?', (feed,))['n'] == 1
+    status = next(f for f in c.get('/api/v1/feeds').json() if f['id'] == feed)['import_status']
+    assert status['found'] == 3 and status['stored'] == 1 and status['initial_limit_skipped'] == 2
+
+
+def test_temporarily_private_video_is_imported_when_it_becomes_public(yt):
+    _, _, db, _, _, catalog, snapshot, add = yt
+    snapshot['entries'] = [video('one', availability='private'), video('two')]
+    feed = add(limit=1)
+    assert db.one('SELECT source_key FROM episodes WHERE feed_id=?', (feed,))['source_key'] == 'youtube:two'
+    snapshot['entries'][0]['availability'] = 'public'
+    assert catalog.refresh(feed) == 1
+    assert db.one('SELECT COUNT(*) n FROM episodes WHERE feed_id=?', (feed,))['n'] == 2
+
+
+def test_populated_legacy_collection_keeps_its_initial_limit(yt):
+    _, _, db, _, _, catalog, _, add = yt
+    feed = add(limit=1)
+    db.execute('DELETE FROM settings WHERE key=?', (f'yt_skipped:{feed}',))
+    assert catalog.refresh(feed) == 0
+    assert db.one('SELECT COUNT(*) n FROM episodes WHERE feed_id=?', (feed,))['n'] == 1
+
+
+def test_empty_import_explains_excluded_and_unavailable_entries(yt):
+    c, _, db, _, _, _, snapshot, add = yt
+    snapshot['entries'] = [video('one', media_type='short'), video('two', live_status='is_live'), video('three', availability='private')]
+    feed = add()
+    status = next(f for f in c.get('/api/v1/feeds').json() if f['id'] == feed)['import_status']
+    assert status['found'] == 3 and status['excluded'] == 2 and status['unavailable'] == 1 and status['stored'] == 0
+    assert not db.one('SELECT id FROM episodes WHERE feed_id=?', (feed,))
+
+
+def test_real_ytdlp_flat_video_metadata_passes_collector_and_import(yt, monkeypatch, capsys):
+    import json
+    from yt_dlp import YoutubeDL
+    from yt_dlp.extractor.youtube import YoutubeTabIE
+    from app import ytdlp_runner
+    with YoutubeDL({'quiet': True, 'cachedir': False}) as ydl:
+        item = YoutubeTabIE(ydl)._extract_video({
+            'videoId': 'abcdefghijk', 'title': {'runs': [{'text': 'Normales Video'}]},
+            'lengthText': {'simpleText': '12:34'},
+            'thumbnail': {'thumbnails': [{'url': 'https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg'}]},
+            'publishedTimeText': {'simpleText': '2 days ago'},
+        })
+    class FlatExtractor:
+        def __init__(self, options):
+            assert options['extract_flat'] is True and options['skip_download'] is True
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def extract_info(self, url, download):
+            assert download is False
+            return {'_type': 'playlist', 'title': 'Echte Metadatenform', 'entries': iter([item])}
+    monkeypatch.setattr('yt_dlp.YoutubeDL', FlatExtractor)
+    monkeypatch.setattr(ytdlp_runner, 'javascript_options', lambda: {})
+    ytdlp_runner.catalog('https://youtube.com/playlist?list=PLtest')
+    result = json.loads(capsys.readouterr().out)
+    _, _, db, _, _, _, snapshot, add = yt
+    snapshot.update(result)
+    feed = add()
+    ep = db.one('SELECT title,duration,cover FROM episodes WHERE feed_id=?', (feed,))
+    assert ep['title'] == 'Normales Video' and ep['duration'] == 754
+    assert ep['cover'].endswith('/hqdefault.jpg')
+
+
+def test_collector_rejects_empty_result_when_youtube_declares_entries(monkeypatch):
+    from app import ytdlp_runner
+    class EmptyExtractor:
+        def __init__(self, options): pass
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def extract_info(self, *args, **kwargs):
+            return {'_type': 'playlist', 'title': 'Playlist', 'playlist_count': 4, 'entries': []}
+    monkeypatch.setattr('yt_dlp.YoutubeDL', EmptyExtractor)
+    monkeypatch.setattr(ytdlp_runner, 'javascript_options', lambda: {})
+    with pytest.raises(ValueError, match='Eintragsliste ist leer'):
+        ytdlp_runner.catalog('https://youtube.com/playlist?list=PLtest')
+
+
+def test_completed_live_recording_imports_and_repairs_previously_empty_collection(yt):
+    _, _, db, _, _, catalog, snapshot, add = yt
+    # Metadata shape observed for the user's actual one-video playlist "podsync".
+    recording = video('_fywShwdD6c', live_status='was_live', is_live=None, was_live=None,
+                      media_type=None, duration=4361, availability=None)
+    snapshot['entries'] = []
+    feed = add(limit=1)
+    db.put(f'yt_seen:{feed}', ['_fywShwdD6c'])
+    db.execute('DELETE FROM settings WHERE key=?', (f'yt_skipped:{feed}',))
+    snapshot['entries'] = [recording]
+    assert catalog.refresh(feed) == 1
+    assert db.one('SELECT duration FROM episodes WHERE feed_id=?', (feed,))['duration'] == 4361
+    assert db.get(f'yt_status:{feed}')['excluded'] == 0
+
+
+@pytest.mark.parametrize('status,is_live,was_live,media_type,accepted', [
+    ('was_live', False, True, 'livestream', True),
+    ('was_live', None, None, None, True),
+    ('post_live', False, True, 'livestream', True),
+    ('is_live', True, False, 'livestream', False),
+    ('is_upcoming', False, False, 'livestream', False),
+    ('not_live', False, False, 'short', False),
+])
+def test_download_runner_uses_same_filter_as_catalog(monkeypatch, tmp_path, status, is_live, was_live, media_type, accepted):
+    from app import ytdlp_runner
+    processed = []
+    info = {'id': 'abcdefghijk', 'title': 'Video', 'live_status': status,
+            'is_live': is_live, 'was_live': was_live, 'media_type': media_type}
+    class Extractor:
+        def __init__(self, options): pass
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def extract_info(self, *args, **kwargs): return info
+        def add_post_processor(self, *args, **kwargs): pass
+        def process_ie_result(self, value, download):
+            assert download is True
+            processed.append(value)
+    monkeypatch.setattr('yt_dlp.YoutubeDL', Extractor)
+    monkeypatch.setattr(ytdlp_runner, 'javascript_options', lambda: {})
+    if accepted:
+        ytdlp_runner.run('https://youtube.com/watch?v=abcdefghijk', tmp_path, 1000)
+        assert processed == [info]
+    else:
+        with pytest.raises(ValueError):
+            ytdlp_runner.run('https://youtube.com/watch?v=abcdefghijk', tmp_path, 1000)
+        assert not processed

@@ -52,7 +52,7 @@ Beim Neustart unterbrochene Gesamtaktualisierungen werden erneut versucht, ohne 
 
 In **Bibliothek → Import** gibt es die Importarten Einzelvideo, YouTube-Playlist und YouTube-Kanal. Einzelimporte starten sofort einen Download und erscheinen unter **YouTube · Einzelimporte**. Playlists und Kanäle bilden eigene Sammlungen mit Herkunftskennzeichnung und Vorschaubildern. Sie werden im gleichen Intervall wie RSS (`RSS_INTERVAL_SECONDS`) geprüft, ohne automatisch Audiodateien herunterzuladen.
 
-Beim ersten Import kann eine Anzahl (Vorgabe 50) oder „Alle“ gewählt werden. Kanäle verwenden ihre neuesten Videos, Playlists die Playlist-Reihenfolge. Der erste Abgleich merkt sich auch die zunächst nicht importierten IDs: Spätere Prüfungen ergänzen neue Videos und laden nicht ungefragt den restlichen alten Katalog nach. Shorts und Livestreams einschließlich Aufzeichnungen werden ausgeschlossen. Private/gelöschte Einträge werden nicht neu importiert. Ein gescheiterter oder erkennbar unvollständiger Abruf darf keine Einträge entfernen.
+Beim ersten Import kann eine Anzahl (Vorgabe 50) oder „Alle“ gewählt werden. Kanäle verwenden ihre neuesten Videos, Playlists die Playlist-Reihenfolge. Der erste Abgleich merkt sich auch die zunächst nicht importierten IDs: Spätere Prüfungen ergänzen neue Videos und laden nicht ungefragt den restlichen alten Katalog nach. Shorts sowie laufende und geplante Livestreams werden ausgeschlossen. Abgeschlossene Livestream-Aufzeichnungen sind erlaubt. Private/gelöschte Einträge werden nicht neu importiert. Ein gescheiterter oder erkennbar unvollständiger Abruf darf keine Einträge entfernen.
 
 **Anhängen** und **Für später merken** laden YouTube-Episoden bei Bedarf herunter. Bereits laufende oder fertige Downloads werden wiederverwendet. RSS-Episoden werden weiterhin gestreamt. Das Entfernen eines Merkers oder Warteschlangeneintrags bricht keinen Download ab. Random verwendet nur fertige YouTube-Downloads und keine ausgeblendeten Einträge.
 
@@ -72,3 +72,15 @@ Wiedergabestatus und der Umschalter **In diesem Browser abspielen** befinden sic
 Neben der Timer-Auswahl schaltet **Zufallswiedergabe** die konfigurierte Auswahl (alle oder ungehört) ein bzw. aus. Der Schalter verändert keine Timer-Dauer und startet nicht automatisch. Mit aktivierter Zufallswiedergabe kann **Play** auch ohne aktuelle Episode starten; die Warteschlange hat weiterhin Vorrang.
 
 **Nächste** behält jetzt die verbleibende Timer-Zeit einschließlich +5-Minuten-Verlängerungen bei. Auch die Titelvorbereitung/-ansage bei manuellem „Nächste“ verbraucht diese Restzeit nicht. Ein abgelaufener Timer wird dadurch nicht neu gestartet. Ein explizites API-`timer:"default"` wählt weiterhin bewusst die volle Vorgabe. Das gezielte Starten einer einzelnen Episode und die API-Play/Toggle-Regeln bleiben unverändert.
+
+
+### YouTube-Sammlung ohne Episoden
+
+Nach einem Update die betroffene Sammlung auswählen und im Sammlungsmenü **Aktualisieren** ausführen. Frühere leere Importe werden beim nächsten erfolgreichen Abgleich erneut anhand ihrer Importgrenze gefüllt, ohne die Sammlung zu löschen. Bereits entdeckte IDs werden nicht pauschal als importiert behandelt. Temporär nicht verfügbare Videos können später nachkommen; bewusst durch die Erstimportgrenze ausgelassene Videos bleiben dagegen ausgeschlossen. Bei bestehenden, bereits gefüllten Alt-Sammlungen wird die bisherige Grenze beibehalten.
+
+Bei einer leeren Sammlung zeigt die Bibliothek nach erfolgreichem Abruf die Anzahl gefundener, durch Shorts/Live-Filter ausgeschlossener, nicht verfügbarer und durch die Importgrenze ausgelassener Einträge. Abruffehler werden mit konkretem yt-dlp-Fehler am Feed angezeigt, statt nur als generischer RSS-Fehler. Diese Meldung bzw. der Playlist-Link helfen bei der Diagnose. Ein leeres Extraktionsergebnis trotz gemeldeter Videoanzahl gilt als Fehler und entfernt keine bestehenden Episoden. Pro erfolgreichem Abgleich werden die Zähler außerdem ins Backend-Log geschrieben.
+
+
+### Pause und Wiedergabeende
+
+Ein eigener Stop-Button ist nicht erforderlich: Pause hält Wiedergabe und UI-Timer an und behält die Position. Nach einer fertigen Episode ohne Fortsetzung zeigt der Player „Wiedergabe beendet“, sonst bei fehlender Wiedergabe „Keine Wiedergabe“. Die API-State-Werte bleiben unverändert. Im leeren Player führt der einzige Episoden-Auswahlzugang über die Warteschlange; der doppelte Button in der Player-Kachel entfällt.

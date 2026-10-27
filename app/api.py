@@ -210,7 +210,11 @@ def create_app(settings=None, *, mpd=None, notifications=None, background=True):
     @app.get("/api/v1/feeds", response_model=list[FeedResult])
     def feeds(q: str = ''):
         where = " WHERE instr(casefold(f.title),casefold(?))>0 OR EXISTS(SELECT 1 FROM episodes e WHERE e.feed_id=f.id AND instr(casefold(e.title),casefold(?))>0)" if q else ''
-        return db.rows("SELECT f.*,(SELECT COUNT(*) FROM episodes e WHERE e.feed_id=f.id) AS episode_count FROM feeds f" + where + " ORDER BY f.title,f.id", (q,q) if q else ())
+        rows = db.rows("SELECT f.*,(SELECT COUNT(*) FROM episodes e WHERE e.feed_id=f.id) AS episode_count FROM feeds f" + where + " ORDER BY f.title,f.id", (q,q) if q else ())
+        for feed in rows:
+            if feed['kind'] in YOUTUBE_KINDS:
+                feed['import_status'] = db.get(f"yt_status:{feed['id']}")
+        return rows
 
     @app.post("/api/v1/feeds", status_code=201)
     def add_feed(data: FeedInput):
@@ -262,7 +266,7 @@ def create_app(settings=None, *, mpd=None, notifications=None, background=True):
             ids = [e["id"] for e in db.rows("SELECT id FROM episodes WHERE feed_id=?", (feed_id,))]
             if feed and feed['kind'] in (*YOUTUBE_KINDS, 'links'):
                 youtube.delete(ids)
-                db.execute('DELETE FROM settings WHERE key=?', (f'yt_seen:{feed_id}',))
+                db.execute('DELETE FROM settings WHERE key IN (?,?,?)', (f'yt_seen:{feed_id}', f'yt_skipped:{feed_id}', f'yt_status:{feed_id}'))
             else:
                 player.delete_episodes(ids)
             db.execute("DELETE FROM feeds WHERE id=?", (feed_id,))

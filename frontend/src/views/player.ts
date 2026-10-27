@@ -40,14 +40,8 @@ export function renderPlayer(this: PlayPodApp) {
                       ${t("Beschreibung ansehen ↗")}
                     </button>`
                   : html`<p class="muted empty-player-hint">
-                        ${s && s.when_queue_empty !== "stop" ? t("Play startet die Warteschlange oder eine passende zufällige Episode.") : t("Wähle eine Episode oder aktiviere die Zufallswiedergabe.")}
-                      </p>
-                      <button
-                        class="ghost small"
-                        @click=${() => this.navigate("management")}
-                      >
-                        ${t("Episoden auswählen")}
-                      </button>`
+                      ${s && s.when_queue_empty !== "stop" ? t("Play startet die Warteschlange oder eine passende zufällige Episode.") : t("Wähle eine Episode oder aktiviere die Zufallswiedergabe.")}
+                    </p> `
               }
             </div>
             <div class="progress">
@@ -373,7 +367,7 @@ function playbackTarget(this: PlayPodApp) {
   const state = this.state;
   return html`<div class="playback-target">
     <span class="badge playback-status"
-      >${state?.waiting_download ? t("Wartet auf Download") : state?.phase === "announcement" ? (state.state === "pause" ? this.announcementLabel + t(" pausiert") : this.announcementLabel + t(" läuft")) : state?.state === "play" ? t("Wiedergabe läuft") : state?.state === "pause" ? t("Pausiert") : t("Gestoppt")}</span
+      >${state?.waiting_download ? t("Wartet auf Download") : state?.phase === "announcement" ? (state.state === "pause" ? this.announcementLabel + t(" pausiert") : this.announcementLabel + t(" läuft")) : state?.state === "play" ? t("Wiedergabe läuft") : state?.current?.completed ? t("Wiedergabe beendet") : state?.state === "pause" ? t("Pausiert") : t("Keine Wiedergabe")}</span
     >
     ${
       this.config?.mpd_configured
