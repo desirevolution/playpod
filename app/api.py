@@ -208,9 +208,12 @@ def create_app(settings=None, *, mpd=None, notifications=None, background=True):
         return player_command(lambda: player.timer(extend=(data.minutes if data else 5) * 60))
 
     @app.get("/api/v1/feeds", response_model=list[FeedResult])
-    def feeds(q: str = ''):
+    def feeds(q: str = '', language: Literal['de', 'en'] | None = None):
         where = " WHERE instr(casefold(f.title),casefold(?))>0 OR EXISTS(SELECT 1 FROM episodes e WHERE e.feed_id=f.id AND instr(casefold(e.title),casefold(?))>0)" if q else ''
-        rows = db.rows("SELECT f.*,(SELECT COUNT(*) FROM episodes e WHERE e.feed_id=f.id) AS episode_count FROM feeds f" + where + " ORDER BY f.title,f.id", (q,q) if q else ())
+        matches = youtube.matching_urls(q, language) if q else []
+        if matches:
+            where += " OR EXISTS(SELECT 1 FROM episodes e WHERE e.feed_id=f.id AND e.source_type='web' AND e.url IN (" + ','.join('?' for _ in matches) + '))'
+        rows = db.rows("SELECT f.*,(SELECT COUNT(*) FROM episodes e WHERE e.feed_id=f.id) AS episode_count FROM feeds f" + where + " ORDER BY f.title,f.id", (q,q,*matches) if q else ())
         for feed in rows:
             if feed['kind'] in YOUTUBE_KINDS:
                 feed['import_status'] = db.get(f"yt_status:{feed['id']}")
@@ -322,11 +325,14 @@ def create_app(settings=None, *, mpd=None, notifications=None, background=True):
             return {'feed_id': ep['feed_id'], 'offset': (rank // 50) * 50, 'hidden': bool(ep['hidden'])}
 
     @app.get("/api/v1/episodes", response_model=EpisodeListResult)
-    def episodes(q: str = "", filter: Literal["all", "marked", "new", "started", "completed", "local", "downloaded", "hidden"] = "all", feed_id: int | None = None, offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=200)):
+    def episodes(q: str = "", filter: Literal["all", "marked", "new", "started", "completed", "local", "downloaded", "hidden"] = "all", feed_id: int | None = None, offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=200), language: Literal['de', 'en'] | None = None):
         where, args = ["e.hidden=1" if filter == "hidden" else "e.hidden=0"], []
         if q:
-            where.append("(instr(casefold(e.title),casefold(?))>0 OR instr(casefold(f.title),casefold(?))>0)")
+            matches = youtube.matching_urls(q, language)
+            translated = " OR (e.source_type='web' AND e.url IN (" + ','.join('?' for _ in matches) + "))" if matches else ''
+            where.append("(instr(casefold(e.title),casefold(?))>0 OR instr(casefold(f.title),casefold(?))>0" + translated + ")")
             args += [q, q]
+            args += matches
         if feed_id is not None:
             where.append("e.feed_id=?")
             args.append(feed_id)
@@ -335,7 +341,7 @@ def create_app(settings=None, *, mpd=None, notifications=None, background=True):
         base = " FROM episodes e JOIN feeds f ON f.id=e.feed_id WHERE " + " AND ".join(where)
         total = db.one("SELECT COUNT(*) AS n" + base, args)["n"]
         items = db.rows("SELECT e.*, f.title AS podcast, f.cover AS feed_cover, f.kind AS feed_kind" + base + " ORDER BY e.published DESC,e.id DESC LIMIT ? OFFSET ?", (*args, limit, offset))
-        return {"items": items, "total": total}
+        return {"items": youtube.localized(items, language), "total": total}
 
     @app.get("/api/v1/episodes/{episode_id}", response_model=EpisodeResult)
     def episode(episode_id: int, language: Literal['de', 'en'] | None = None):

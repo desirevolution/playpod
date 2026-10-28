@@ -52,6 +52,31 @@ def test_details_failure_keeps_existing_metadata_and_can_retry(yt, monkeypatch):
     assert c.get(url).json()['title'] == 'Wieder verfügbar'
 
 
+def test_library_uses_loaded_language_variant_and_can_search_it_without_network(yt, monkeypatch):
+    c, _, db, _, _, catalog, _, add = yt
+    feed = add()
+    ep = db.one('SELECT * FROM episodes WHERE feed_id=?', (feed,))
+    monkeypatch.setattr('app.ytdlp.metadata', lambda *args: {
+        'title': 'Über die gegenwärtige Linke', 'description': 'Beschreibung',
+        'thumbnail': 'https://example.test/de.jpg'})
+    assert c.get(f"/api/v1/episodes/{ep['id']}?language=de").status_code == 200
+    def fail(*args): raise AssertionError('Library must never extract metadata')
+    monkeypatch.setattr('app.ytdlp.metadata', fail)
+    url = f'/api/v1/episodes?feed_id={feed}'
+    items = c.get(url + '&language=de').json()['items']
+    assert next(e for e in items if e['id'] == ep['id'])['title'] == 'Über die gegenwärtige Linke'
+    for suffix in ('', '&language=en'):
+        assert next(e for e in c.get(url + suffix).json()['items'] if e['id'] == ep['id'])['title'] == ep['title']
+    result = c.get(url + '&language=de&q=GEGENWÄRTIGE').json()
+    assert result['total'] == 1 and result['items'][0]['id'] == ep['id']
+    assert c.get(url + '&language=en&q=GEGENWÄRTIGE').json()['total'] == 0
+    assert [f['id'] for f in c.get('/api/v1/feeds?language=de&q=gegenwärtige').json()] == [feed]
+    assert c.get('/api/v1/feeds?language=en&q=gegenwärtige').json() == []
+    catalog.refresh(feed)
+    assert c.get(url + '&language=de&q=gegenwärtige').json()['items'][0]['title'] == 'Über die gegenwärtige Linke'
+    assert db.one('SELECT title FROM episodes WHERE id=?', (ep['id'],))['title'] == ep['title']
+
+
 def test_metadata_runner_requests_language_without_downloading(monkeypatch, capsys):
     import json
     from app import ytdlp_runner

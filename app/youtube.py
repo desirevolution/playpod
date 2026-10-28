@@ -63,6 +63,25 @@ class YouTubeCatalog:
         self.metadata_lock = threading.Lock()
         self.metadata_slots = threading.BoundedSemaphore(2)
 
+    def localized(self, episodes, language):
+        """Use known language variants in library lists, without any network I/O."""
+        if not language:
+            return episodes
+        cache = self.db.get('yt_details_cache') or {}
+        result = []
+        for ep in episodes:
+            cached = cache.get(language + ':' + ep['url']) if ep.get('source_type') == 'web' else None
+            result.append({**ep, **{field: cached[field] or ep[field] for field in ('title', 'description', 'cover')}} if cached else ep)
+        return result
+
+    def matching_urls(self, query, language):
+        if not language:
+            return []
+        cache = self.db.get('yt_details_cache') or {}
+        prefix = language + ':'
+        return [key[len(prefix):] for key, item in cache.items()
+                if key.startswith(prefix) and query.casefold() in item['title'].casefold()]
+
     def details(self, episode_id, language):
         ep = self.player.episode(episode_id)
         host = (urlsplit(ep['url']).hostname or '').lower()

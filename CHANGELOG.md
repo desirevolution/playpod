@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Bibliothek und Suche verwenden bereits geladene YouTube-Metadaten der gewählten App-Sprache. Die Liste aktualisiert sich nach dem Laden der Details sowie bei Sprachwechseln; der gemeinsame Katalog und API-Aufrufe ohne Sprachparameter bleiben unverändert. Listenabrufe lösen keine YouTube-Netzwerkzugriffe aus.
 - Detailsdialog: Schließen-Button bleibt bei langen Titeln rechts oben; Cover wird angezeigt. YouTube-Titel/Beschreibung/Cover werden ohne Audiodownload in der aktuellen App-Sprache nachgeladen und getrennt für Deutsch/Englisch zwischengespeichert. Ladezustand, Wiederholung bei Fehlern und Schutz vor verspäteten Antworten nach Schließen/Sprachwechsel.
 - Abgeschlossene YouTube-Livestream-Aufzeichnungen (was_live/post_live) werden importiert und heruntergeladen; nur Shorts sowie laufende/geplante Streams bleiben ausgeschlossen. Doppelte Auswahlaktion im leeren Player entfernt, Zugang über Warteschlange bleibt. Aussagekräftigere Wiedergabe-Endzustände ohne zusätzlichen Stop-Button.
 

@@ -1,5 +1,11 @@
 # PlayPod 1.0.0 validation
 
+## Localized YouTube library titles
+
+- 38 relevant backend tests passed (YouTube, catalog UI, API, feeds); all 51 frontend tests and TypeScript/Vite production build passed. Release consistency remains 1.0.0.
+- Regression coverage: details fetched in German become visible in the German library; English/catalog-only callers retain their own fallback; localized title search is case-insensitive and returns the matching collection; a feed refresh does not lose the displayed translation. List/search calls fail the test if they attempt a YouTube metadata fetch.
+- The frontend sends the current language for library episodes and collection search, reloads on language changes, and refreshes the list after successful detail loading. Stored catalog titles and listening state are not overwritten.
+
 ## YouTube episode details and dialog header
 
 - Full backend suite: 309 passed. After limiting parallel detail extraction and shortening its timeout, all 25 YouTube tests passed again. Frontend: 51 passed; TypeScript/Vite production build passed.

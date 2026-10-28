@@ -217,6 +217,7 @@ export class PlayPodApp extends LitElement {
   }
   onLanguage = () => {
     this.requestUpdate();
+    if (this.view === "management") void this.loadManagement();
     if (this.dialog?.kind === "details")
       void this.loadEpisodeDetails(this.dialog);
   };
@@ -415,11 +416,15 @@ export class PlayPodApp extends LitElement {
       filter: this.filter,
       offset: String(this.offset),
       limit: "50",
+      language: getLocale(),
     });
     if (this.feedFilter) args.set("feed_id", String(this.feedFilter));
     try {
       const [feeds, result] = await Promise.all([
-        this.api<Feed[]>("feeds?" + new URLSearchParams({ q: this.query })),
+        this.api<Feed[]>(
+          "feeds?" +
+            new URLSearchParams({ q: this.query, language: getLocale() }),
+        ),
         this.api<{ items: Episode[]; total: number }>("episodes?" + args),
       ]);
       if (seq === this.sequence) {
@@ -593,13 +598,15 @@ export class PlayPodApp extends LitElement {
       const episode = await this.api<Episode>(
         `episodes/${d.episode.id}?language=${language}`,
       );
-      if (this.dialog === pending && getLocale() === language)
+      if (this.dialog === pending && getLocale() === language) {
         this.dialog = {
           ...pending,
           episode,
           loading: false,
           detailsError: episode.metadata_error || "",
         };
+        if (this.view === "management") void this.loadManagement();
+      }
     } catch {
       if (this.dialog === pending && getLocale() === language)
         this.dialog = {
