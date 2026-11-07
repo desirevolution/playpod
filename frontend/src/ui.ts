@@ -20,8 +20,7 @@ export const icon = (name: string) => {
     next: "m5 5 10 7-10 7Zm13 0v14",
     back: "M4 9a8 8 0 1 1 0 7m0-12v5h5",
     forward: "M20 9a8 8 0 1 0 0 7m0-12v5h-5",
-    shuffleOff:
-      "M3 3l18 18M3 6h3l3 3m4 4 5 5h3m-4-4 4 4-4 4M3 18h3l4-4m4-4 4-4h3m-4-4 4 4-4 4",
+    ban: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18ZM5.64 5.64l12.72 12.72",
     bookmark: "M6 4h12v17l-6-4-6 4Z",
     player: "M4 4h16v16H4Zm6 4 6 4-6 4Z",
     library: "M4 4v16m5-16v16m5-16v16m4-15 3 14",
@@ -45,8 +44,8 @@ export const icon = (name: string) => {
 
 export function randomExclusionLabel(title: string, excluded: boolean) {
   return excluded
-    ? t("Podcast „{title}“ wieder für Zufallswiedergabe zulassen", { title })
-    : t("Podcast „{title}“ von Zufallswiedergabe ausschließen", { title });
+    ? t("Episode „{title}“ wieder für Zufallswiedergabe zulassen", { title })
+    : t("Episode „{title}“ von Zufallswiedergabe ausschließen", { title });
 }
 
 export function randomExclusionButton(
@@ -65,6 +64,6 @@ export function randomExclusionButton(
     title=${label}
     ?disabled=${disabled}
   >
-    ${icon("shuffleOff")}
+    ${icon("ban")}
   </button>`;
 }

@@ -79,7 +79,7 @@ Sleep duration (initially 15 minutes) and random selection are configured in the
 
 Random selection always starts episodes at 0:00. “Not fully played” includes partially played episodes and excludes completed episodes; an empty pool stops playback. Explicit episode and queue selections resume saved progress. The queue always takes priority over random selection.
 
-Use the crossed shuffle icon next to the bookmark in the Library, or on a new podcast or episode in Activity, to exclude the entire podcast from random playback. The same action is available in the podcast menu. The setting is shared by Browser and MPD and applies to existing and future episodes, including favorites. Click again to include the podcast. Direct playback and queued episodes remain available. A custom RSS display name is kept across refreshes. Clear it in the edit form to use the feed title.
+Use the ban icon next to the bookmark in the Library or beside a new episode in Activity to exclude that episode from random playback in Browser and MPD. Click again to include it. Direct playback and queued episodes remain available. A custom RSS display name is kept across refreshes. Clear it in the edit form to use the feed title.
 
 ### Local folders
 
@@ -150,7 +150,7 @@ Adding a YouTube episode to the queue or marking it for later starts an idempote
 
 Individual imports can be removed with their files, or just their local copy can be deleted. Playlist/channel items can be hidden/unhidden, rather than manually deleted. Deleting a YouTube collection removes all its entries and managed audio files after confirmation; duplicate copies in other collections are independent. In-use browser downloads must first be released. External media directories are never deleted. Thumbnails are remote image URLs; playback still uses downloaded audio.
 
-Database schema 7 stores podcast display names and shuffle exclusions. Upgrading an existing database creates a `.before-v7.sqlite3` backup. Older application versions cannot open schema 7.
+Database schema 8 stores shuffle exclusions per episode. The upgrade creates a `.before-v8.sqlite3` backup. Previous podcast-wide exclusions are not copied to episodes.
 
 
 Empty legacy YouTube imports can recover by refreshing the existing collection after updating. Discovered IDs and deliberately omitted initial-limit IDs are now tracked separately. Later-public videos can be imported without treating them as already imported. Empty collections expose import counts and concrete extraction errors in the library; successful checks log found/excluded/unavailable/limited/added/stored counts. A collector result with no entries but a positive declared video count is rejected rather than used for removals.

@@ -127,6 +127,7 @@ class EpisodeResult(BaseModel):
     source_type: Literal['audio', 'web']
     bookmarked: int
     completed: int
+    random_excluded: bool
 
 
 class TimerResult(BaseModel):
@@ -190,7 +191,6 @@ class FeedResult(BaseModel):
     title: str
     favorite: int
     display_title: str | None
-    random_excluded: bool
     kind: Literal['rss', 'local', 'links', 'yt_playlist', 'yt_channel']
     episode_count: int
     error: str

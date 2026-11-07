@@ -820,14 +820,16 @@ export class PlayPodApp extends LitElement {
     if (action === "random-excluded" && id) {
       const excluded = b.dataset.value === "true";
       void this.perform(async () => {
-        await this.api(`feeds/${id}/random-excluded`, "PUT", {
+        await this.api(`episodes/${id}/random-excluded`, "PUT", {
           value: excluded,
         });
-        this.feeds = this.feeds.map((feed) =>
-          feed.id === id ? { ...feed, random_excluded: excluded } : feed,
+        this.episodes = this.episodes.map((episode) =>
+          episode.id === id
+            ? { ...episode, random_excluded: excluded }
+            : episode,
         );
         this.activityItems = this.activityItems.map((event) =>
-          event.feed_id === id
+          event.episode_id === id
             ? { ...event, random_excluded: excluded }
             : event,
         );

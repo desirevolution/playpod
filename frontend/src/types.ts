@@ -14,6 +14,7 @@ export type Episode = {
   last_started: number | null;
   completed: number;
   bookmarked: number;
+  random_excluded: boolean;
   published: number | null;
   description: string;
   availability: string;
@@ -30,7 +31,6 @@ export type Feed = {
   title: string;
   favorite: number;
   display_title: string | null;
-  random_excluded: boolean;
   cover: string;
   last_success: number | null;
   error: string;

@@ -66,7 +66,7 @@ Einzelimporte lassen sich samt Datei entfernen; „Lokale Kopie löschen“ beh�
 
 Das bestätigte Löschen einer YouTube-Sammlung entfernt alle ihre Einträge und Audiodateien. Duplikate und Dateien anderer Sammlungen bleiben unabhängig erhalten. Browserseitig verwendete Dateien müssen vor einer endgültigen Löschung freigegeben werden; externe Medienverzeichnisse werden niemals gelöscht. Die Cover sind externe Vorschaubild-URLs, keine lokal gespeicherten Bilddateien.
 
-Datenbankschema 7 speichert Podcast-Anzeigenamen und Ausschlüsse für die Zufallswiedergabe. Vor dem Upgrade einer vorhandenen Datenbank entsteht eine Sicherung mit der Endung `.before-v7.sqlite3`.
+Datenbankschema 8 speichert Ausschlüsse für die Zufallswiedergabe pro Episode. Vor dem Upgrade entsteht eine `.before-v8.sqlite3`-Sicherung. Bisherige Ausschlüsse ganzer Podcasts werden nicht auf einzelne Episoden übertragen.
 
 
 ### Player, Zufallswiedergabe und Timer
@@ -75,7 +75,7 @@ Wiedergabestatus und der Umschalter **In diesem Browser abspielen** befinden sic
 
 Neben der Timer-Auswahl schaltet **Zufallswiedergabe** die konfigurierte Auswahl (alle oder ungehört) ein bzw. aus. Der Schalter verändert keine Timer-Dauer und startet nicht automatisch. Mit aktivierter Zufallswiedergabe kann **Play** auch ohne aktuelle Episode starten; die Warteschlange hat weiterhin Vorrang.
 
-Das durchgestrichene Shuffle-Icon neben **Für später merken** schließt den ganzen Podcast von der Zufallswiedergabe aus. Die Aktion steht auch im Podcast-Menü und in den Aktivitäten bei neuen Podcasts und Episoden zur Verfügung. Ein erneuter Klick schließt den Podcast wieder ein. Browser und MPD wenden die Einstellung auf vorhandene und zukünftige Episoden an, auch bei Favoriten. Direktes Abspielen und die Warteschlange bleiben verfügbar.
+Das Sperrsymbol neben **Für später merken** schließt die einzelne Episode von der Zufallswiedergabe in Browser und MPD aus. Die Aktion steht auch bei neuen Episoden in den Aktivitäten zur Verfügung. Ein erneuter Klick schließt die Episode wieder ein. Direktes Abspielen und die Warteschlange bleiben verfügbar.
 
 Ein eigener Anzeigename bleibt beim RSS-Abruf erhalten. Ein leeres Feld unter **Podcast bearbeiten** übernimmt den Titel aus dem Feed.
 

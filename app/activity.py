@@ -38,7 +38,7 @@ def listing(db, kind='all', before=None, limit=50):
     with db.connect() as conn:
         prune(conn)
         rows = [dict(row) for row in conn.execute('''SELECT a.id,a.kind,a.created,a.episode_id,a.feed_id,a.count,a.target,
-            COALESCE(e.title,a.title) AS title, COALESCE(f.display_title,f.title,a.podcast) AS podcast, f.random_excluded
+            COALESCE(e.title,a.title) AS title, COALESCE(f.display_title,f.title,a.podcast) AS podcast, e.random_excluded
             FROM activity a LEFT JOIN episodes e ON e.id=a.episode_id
             LEFT JOIN feeds f ON f.id=a.feed_id''' + where + ' ORDER BY a.id DESC LIMIT ?', (*args, limit + 1))]
     return {'items': rows[:limit], 'next_cursor': rows[limit-1]['id'] if len(rows) > limit else None}

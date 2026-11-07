@@ -535,7 +535,7 @@ class Player:
         # Avoid the current episode if there are alternatives; a single-episode library can repeat.
         base = """SELECT e.* FROM episodes e JOIN feeds f ON f.id=e.feed_id
                   LEFT JOIN media_roots r ON r.id=e.media_root_id
-                  WHERE e.hidden=0 AND f.random_excluded=0 AND (e.source_type<>'web' OR EXISTS(SELECT 1 FROM downloads d WHERE d.episode_id=e.id AND d.state='ready'))
+                  WHERE e.hidden=0 AND e.random_excluded=0 AND (e.source_type<>'web' OR EXISTS(SELECT 1 FROM downloads d WHERE d.episode_id=e.id AND d.state='ready'))
                   AND (e.url<>'' OR (e.local_source IS NOT NULL AND e.source_present=1 AND r.enabled=1))""" + scope
         rows = [r for r in self.db.rows(base + " ORDER BY RANDOM()", args) if r["id"] not in exclude]
         return next((e for e in rows if e["id"] != self.saved["episode_id"]), rows[0] if rows else None)

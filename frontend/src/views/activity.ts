@@ -56,12 +56,12 @@ export function renderActivity(this: PlayPodApp) {
                   </p>
                 </div>
                 ${
-                  event.kind !== "completed" &&
-                  event.feed_id !== null &&
+                  event.kind === "episode_added" &&
+                  event.episode_id !== null &&
                   event.random_excluded !== null
                     ? randomExclusionButton(
-                        event.feed_id,
-                        event.podcast,
+                        event.episode_id,
+                        event.title,
                         event.random_excluded,
                         this.busy,
                       )

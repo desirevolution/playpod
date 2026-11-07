@@ -1,7 +1,7 @@
 # Changelog
 
 ## Unreleased
-- Podcasts lassen sich in der Bibliothek und bei neuen Einträgen in den Aktivitäten von der Zufallswiedergabe in Browser und MPD ausschließen.
+- Einzelne Episoden lassen sich in der Bibliothek und bei neuen Episoden in den Aktivitäten mit einem Sperrsymbol von der Zufallswiedergabe in Browser und MPD ausschließen. Das Upgrade auf Schema 8 legt eine Sicherung an.
 - Der Browser versucht zuerst die Warteschlange. Der RSS-Abruf priorisiert GUID-Treffer bei kollidierenden Audio-URLs und behält eigene Podcast-Anzeigenamen bei. Das Upgrade auf Datenbankschema 7 legt eine Sicherung an.
 - Bibliothek und Suche verwenden bereits geladene YouTube-Metadaten der gewählten App-Sprache. Die Liste aktualisiert sich nach dem Laden der Details sowie bei Sprachwechseln; der gemeinsame Katalog und API-Aufrufe ohne Sprachparameter bleiben unverändert. Listenabrufe lösen keine YouTube-Netzwerkzugriffe aus.
 - Detailsdialog: Schließen-Button bleibt bei langen Titeln rechts oben; Cover wird angezeigt. YouTube-Titel/Beschreibung/Cover werden ohne Audiodownload in der aktuellen App-Sprache nachgeladen und getrennt für Deutsch/Englisch zwischengespeichert. Ladezustand, Wiederholung bei Fehlern und Schutz vor verspäteten Antworten nach Schließen/Sprachwechsel.

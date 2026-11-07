@@ -301,13 +301,10 @@ export const english: Record<string, string> = {
   "Als Favorit markieren": "Mark as favorite",
   "Ohne Anzeigenamen wird der Titel aus dem Feed verwendet.":
     "Leave the display name empty to use the feed title.",
-  "Podcast „{title}“ wieder für Zufallswiedergabe zulassen":
-    "Allow podcast “{title}” in shuffle again",
-  "Podcast „{title}“ von Zufallswiedergabe ausschließen":
-    "Exclude podcast “{title}” from shuffle",
-  "Für Zufallswiedergabe zulassen": "Allow in shuffle",
-  "Von Zufallswiedergabe ausschließen": "Exclude from shuffle",
-  "Von Zufallswiedergabe ausgeschlossen": "Excluded from shuffle",
+  "Episode „{title}“ wieder für Zufallswiedergabe zulassen":
+    "Allow episode “{title}” in shuffle again",
+  "Episode „{title}“ von Zufallswiedergabe ausschließen":
+    "Exclude episode “{title}” from shuffle",
   "Podcast gespeichert.": "Podcast saved.",
   "Podcast hinzugefügt. Feedabruf läuft.": "Podcast added. Refreshing feed.",
   "Originalquellen manuell prüfen. Es wird nichts automatisch gelöscht. Ein erreichbarer Server bestätigt noch nicht die vollständige Abspielbarkeit.":

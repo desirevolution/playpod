@@ -52,7 +52,7 @@ class Database:
         with self.connect() as db:
             db.execute("PRAGMA journal_mode=WAL")
             version = db.execute("PRAGMA user_version").fetchone()[0]
-            if version > 7:
+            if version > 8:
                 raise RuntimeError("Diese Datenbank benötigt eine neuere PlayPod-Version.")
             if version == 0:
                 db.executescript(SCHEMA)
@@ -163,10 +163,24 @@ class Database:
                     # Before the first refresh the legacy title was supplied by the user.
                     db.execute("""UPDATE feeds SET display_title=title
                         WHERE kind='rss' AND last_success IS NULL AND title<>'' AND title<>url""")
-                if 'random_excluded' not in columns:
-                    db.execute('ALTER TABLE feeds ADD COLUMN random_excluded INTEGER NOT NULL DEFAULT 0')
                 db.execute('INSERT OR IGNORE INTO schema_migrations VALUES(7)')
                 db.execute('PRAGMA user_version=7')
+            if version < 8:
+                db.commit()
+                backup = Path(path + ".before-v8.sqlite3")
+                if version > 0 and not backup.exists():
+                    dest = sqlite3.connect(backup)
+                    try:
+                        db.backup(dest)
+                    finally:
+                        dest.close()
+                db.execute('BEGIN IMMEDIATE')
+                columns = {row[1] for row in db.execute('PRAGMA table_info(episodes)')}
+                if 'random_excluded' not in columns:
+                    db.execute('ALTER TABLE episodes ADD COLUMN random_excluded INTEGER NOT NULL DEFAULT 0')
+                # A feed-level flag cannot identify which individual episodes to exclude.
+                db.execute('INSERT OR IGNORE INTO schema_migrations VALUES(8)')
+                db.execute('PRAGMA user_version=8')
             from .activity import prune
             prune(db)
             # A killed refresh/cleanup job cannot resume halfway; results remain inspectable.

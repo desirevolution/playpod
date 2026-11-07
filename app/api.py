@@ -272,12 +272,12 @@ def create_app(settings=None, *, mpd=None, notifications=None, background=True):
                 raise HTTPException(404, "Podcast nicht gefunden")
         return {"ok": True}
 
-    @app.put('/api/v1/feeds/{feed_id}/random-excluded', response_model=ValueBool)
-    def set_feed_random_exclusion(feed_id: int, data: ValueBool):
+    @app.put('/api/v1/episodes/{episode_id}/random-excluded', response_model=ValueBool)
+    def set_episode_random_exclusion(episode_id: int, data: ValueBool):
         with db.connect() as conn:
-            updated = conn.execute('UPDATE feeds SET random_excluded=? WHERE id=?', (data.value, feed_id))
+            updated = conn.execute('UPDATE episodes SET random_excluded=? WHERE id=?', (data.value, episode_id))
             if not updated.rowcount:
-                raise HTTPException(404, "Podcast nicht gefunden")
+                raise HTTPException(404, "Episode nicht gefunden")
         return data
 
     @app.delete("/api/v1/feeds/{feed_id}")
