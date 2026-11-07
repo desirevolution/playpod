@@ -66,7 +66,7 @@ Einzelimporte lassen sich samt Datei entfernen; „Lokale Kopie löschen“ beh�
 
 Das bestätigte Löschen einer YouTube-Sammlung entfernt alle ihre Einträge und Audiodateien. Duplikate und Dateien anderer Sammlungen bleiben unabhängig erhalten. Browserseitig verwendete Dateien müssen vor einer endgültigen Löschung freigegeben werden; externe Medienverzeichnisse werden niemals gelöscht. Die Cover sind externe Vorschaubild-URLs, keine lokal gespeicherten Bilddateien.
 
-Das Datenbankschema wird auf Version 6 erweitert. Vor dem Upgrade einer vorhandenen Datenbank entsteht eine Sicherung mit der Endung `.before-v6.sqlite3`.
+Datenbankschema 7 speichert Podcast-Anzeigenamen und Ausschlüsse für die Zufallswiedergabe. Vor dem Upgrade einer vorhandenen Datenbank entsteht eine Sicherung mit der Endung `.before-v7.sqlite3`.
 
 
 ### Player, Zufallswiedergabe und Timer
@@ -74,6 +74,10 @@ Das Datenbankschema wird auf Version 6 erweitert. Vor dem Upgrade einer vorhande
 Wiedergabestatus und der Umschalter **In diesem Browser abspielen** befinden sich direkt in der Player-Kachel. Die übrigen Ansichten zeigen diese Steuerung nicht im Seitenkopf. Ohne aktive Episode zeigt der Player eine Auswahlhilfe statt eines Buchstaben-Covers; nicht verfügbare Seek-/Sprung-/Merker-Steuerungen werden in diesem Zustand ausgeblendet.
 
 Neben der Timer-Auswahl schaltet **Zufallswiedergabe** die konfigurierte Auswahl (alle oder ungehört) ein bzw. aus. Der Schalter verändert keine Timer-Dauer und startet nicht automatisch. Mit aktivierter Zufallswiedergabe kann **Play** auch ohne aktuelle Episode starten; die Warteschlange hat weiterhin Vorrang.
+
+Das durchgestrichene Shuffle-Icon neben **Für später merken** schließt den ganzen Podcast von der Zufallswiedergabe aus. Die Aktion steht auch im Podcast-Menü und in den Aktivitäten bei neuen Podcasts und Episoden zur Verfügung. Ein erneuter Klick schließt den Podcast wieder ein. Browser und MPD wenden die Einstellung auf vorhandene und zukünftige Episoden an, auch bei Favoriten. Direktes Abspielen und die Warteschlange bleiben verfügbar.
+
+Ein eigener Anzeigename bleibt beim RSS-Abruf erhalten. Ein leeres Feld unter **Podcast bearbeiten** übernimmt den Titel aus dem Feed.
 
 **Nächste** behält jetzt die verbleibende Timer-Zeit einschließlich +5-Minuten-Verlängerungen bei. Auch die Titelvorbereitung/-ansage bei manuellem „Nächste“ verbraucht diese Restzeit nicht. Ein abgelaufener Timer wird dadurch nicht neu gestartet. Ein explizites API-`timer:"default"` wählt weiterhin bewusst die volle Vorgabe. Das gezielte Starten einer einzelnen Episode und die API-Play/Toggle-Regeln bleiben unverändert.
 

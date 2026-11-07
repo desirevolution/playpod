@@ -1146,6 +1146,11 @@ a {
   gap: 20px;
   padding: 20px 0;
 }
+.activity-row > .icon {
+  flex-shrink: 0;
+  align-self: flex-start;
+  margin-left: auto;
+}
 .activity-row + .activity-row {
   border-top: 1px solid var(--line);
 }

@@ -209,12 +209,13 @@ def create_app(settings=None, *, mpd=None, notifications=None, background=True):
 
     @app.get("/api/v1/feeds", response_model=list[FeedResult])
     def feeds(q: str = '', language: Literal['de', 'en'] | None = None):
-        where = " WHERE instr(casefold(f.title),casefold(?))>0 OR EXISTS(SELECT 1 FROM episodes e WHERE e.feed_id=f.id AND instr(casefold(e.title),casefold(?))>0)" if q else ''
+        where = " WHERE instr(casefold(COALESCE(f.display_title,f.title)),casefold(?))>0 OR EXISTS(SELECT 1 FROM episodes e WHERE e.feed_id=f.id AND instr(casefold(e.title),casefold(?))>0)" if q else ''
         matches = youtube.matching_urls(q, language) if q else []
         if matches:
             where += " OR EXISTS(SELECT 1 FROM episodes e WHERE e.feed_id=f.id AND e.source_type='web' AND e.url IN (" + ','.join('?' for _ in matches) + '))'
-        rows = db.rows("SELECT f.*,(SELECT COUNT(*) FROM episodes e WHERE e.feed_id=f.id) AS episode_count FROM feeds f" + where + " ORDER BY f.title,f.id", (q,q,*matches) if q else ())
+        rows = db.rows("SELECT COALESCE(f.display_title,f.title) AS effective_title,f.*,(SELECT COUNT(*) FROM episodes e WHERE e.feed_id=f.id) AS episode_count FROM feeds f" + where + " ORDER BY effective_title,f.id", (q,q,*matches) if q else ())
         for feed in rows:
+            feed['title'] = feed.pop('effective_title')
             if feed['kind'] in YOUTUBE_KINDS:
                 feed['import_status'] = db.get(f"yt_status:{feed['id']}")
         return rows
@@ -225,7 +226,9 @@ def create_app(settings=None, *, mpd=None, notifications=None, background=True):
             url = web_url(data.url)
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
-        id_ = db.execute("INSERT INTO feeds(url,title,favorite) VALUES(?,?,?)", (url, data.title or url, data.favorite))
+        display_title = data.display_title if 'display_title' in data.model_fields_set else data.title
+        id_ = db.execute("INSERT INTO feeds(url,title,favorite,display_title) VALUES(?,?,?,?)",
+                         (url, url, data.favorite, (display_title or '').strip() or None))
         return {"id": id_, **accepted_job("refresh", id_)}
 
     @app.post('/api/v1/youtube/collections', status_code=202)
@@ -255,10 +258,27 @@ def create_app(settings=None, *, mpd=None, notifications=None, background=True):
             web_url(data.url)
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
-        if not db.one("SELECT 1 FROM feeds WHERE id=?", (feed_id,)):
-            raise HTTPException(404, "Podcast nicht gefunden")
-        db.execute("UPDATE feeds SET url=?,title=?,favorite=? WHERE id=?", (data.url, data.title, data.favorite, feed_id))
+        display_title = data.display_title
+        update_title = 'display_title' in data.model_fields_set
+        if not update_title and 'title' in data.model_fields_set:
+            # Older clients send the effective title when toggling favorites.
+            update_title = data.title != (existing['display_title'] or existing['title'])
+            display_title = data.title
+        with db.connect() as conn:
+            updated = conn.execute("""UPDATE feeds SET url=?, favorite=?,
+                display_title=CASE WHEN ? THEN ? ELSE display_title END WHERE id=?""",
+                (data.url, data.favorite, update_title, (display_title or '').strip() or None, feed_id))
+            if not updated.rowcount:
+                raise HTTPException(404, "Podcast nicht gefunden")
         return {"ok": True}
+
+    @app.put('/api/v1/feeds/{feed_id}/random-excluded', response_model=ValueBool)
+    def set_feed_random_exclusion(feed_id: int, data: ValueBool):
+        with db.connect() as conn:
+            updated = conn.execute('UPDATE feeds SET random_excluded=? WHERE id=?', (data.value, feed_id))
+            if not updated.rowcount:
+                raise HTTPException(404, "Podcast nicht gefunden")
+        return data
 
     @app.delete("/api/v1/feeds/{feed_id}")
     def delete_feed(feed_id: int):
@@ -330,7 +350,7 @@ def create_app(settings=None, *, mpd=None, notifications=None, background=True):
         if q:
             matches = youtube.matching_urls(q, language)
             translated = " OR (e.source_type='web' AND e.url IN (" + ','.join('?' for _ in matches) + "))" if matches else ''
-            where.append("(instr(casefold(e.title),casefold(?))>0 OR instr(casefold(f.title),casefold(?))>0" + translated + ")")
+            where.append("(instr(casefold(e.title),casefold(?))>0 OR instr(casefold(COALESCE(f.display_title,f.title)),casefold(?))>0" + translated + ")")
             args += [q, q]
             args += matches
         if feed_id is not None:
@@ -340,7 +360,7 @@ def create_app(settings=None, *, mpd=None, notifications=None, background=True):
         where.append(clause)
         base = " FROM episodes e JOIN feeds f ON f.id=e.feed_id WHERE " + " AND ".join(where)
         total = db.one("SELECT COUNT(*) AS n" + base, args)["n"]
-        items = db.rows("SELECT e.*, f.title AS podcast, f.cover AS feed_cover, f.kind AS feed_kind" + base + " ORDER BY e.published DESC,e.id DESC LIMIT ? OFFSET ?", (*args, limit, offset))
+        items = db.rows("SELECT e.*, COALESCE(f.display_title,f.title) AS podcast, f.cover AS feed_cover, f.kind AS feed_kind" + base + " ORDER BY e.published DESC,e.id DESC LIMIT ? OFFSET ?", (*args, limit, offset))
         return {"items": youtube.localized(items, language), "total": total}
 
     @app.get("/api/v1/episodes/{episode_id}", response_model=EpisodeResult)

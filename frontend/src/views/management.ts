@@ -3,9 +3,22 @@ import { html, nothing } from "lit";
 import { repeat } from "lit/directives/repeat.js";
 import type { PlayPodApp } from "../main";
 import type { Episode, Feed } from "../types";
-import { fmt, date, icon } from "../ui";
+import { fmt, date, icon, randomExclusionButton } from "../ui";
 export function renderManagement(this: PlayPodApp) {
-  const selected = this.feeds.find((f) => f.id === this.feedFilter);
+  const feedsById = new Map(this.feeds.map((feed) => [feed.id, feed]));
+  const selected =
+    this.feedFilter === null ? undefined : feedsById.get(this.feedFilter);
+  const episodeRandomAction = (episode: Episode) => {
+    const feed = feedsById.get(episode.feed_id);
+    return feed
+      ? randomExclusionButton(
+          feed.id,
+          feed.title,
+          feed.random_excluded,
+          this.busy,
+        )
+      : nothing;
+  };
   const choose = async (id: number | null) => {
     const picker =
       this.renderRoot.querySelector<HTMLDetailsElement>(".podcast-picker");
@@ -39,7 +52,7 @@ export function renderManagement(this: PlayPodApp) {
               ><small
                 >${countText(f.episode_count, "{count} Episode", "{count} Episoden")}${f.error ? html` · <span class="error-tag">${t("Fehler")}</span>` : nothing}</small
               ></span
-            >${f.favorite ? icon("star") : nothing}
+            >${f.favorite ? icon("star") : nothing}${f.random_excluded ? html`<span class="icon" title=${t("Von Zufallswiedergabe ausgeschlossen")} role="img" aria-label=${t("Von Zufallswiedergabe ausgeschlossen")}>${icon("shuffleOff")}</span>` : nothing}
           </button>`,
       )}
     </nav>`;
@@ -202,6 +215,7 @@ export function renderManagement(this: PlayPodApp) {
                 >
                   ${icon("bookmark")}
                 </button>
+                ${episodeRandomAction(e)}
                 <button
                   class="ghost"
                   data-action="enqueue"
@@ -272,6 +286,15 @@ function feedActions(this: PlayPodApp, f: Feed) {
       <div class="menu-items">
         <button class="ghost" data-action="favorite" data-id=${f.id}>
           ${f.favorite ? t("Favorit entfernen") : t("Favorisieren")}
+        </button>
+        <button
+          class="ghost"
+          data-action="random-excluded"
+          data-id=${f.id}
+          data-value=${!f.random_excluded}
+          ?disabled=${this.busy}
+        >
+          ${f.random_excluded ? t("Für Zufallswiedergabe zulassen") : t("Von Zufallswiedergabe ausschließen")}
         </button>
         ${f.kind !== "links" ? html`<button class="ghost" data-action="refresh" data-id=${f.id}>${t("Aktualisieren")}</button>` : nothing}
         ${f.kind === "rss" ? html`<button class="ghost" data-action="feed-edit" data-id=${f.id}>${t("Podcast bearbeiten")}</button>` : nothing}

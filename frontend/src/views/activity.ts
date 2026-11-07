@@ -1,6 +1,7 @@
 import { html, nothing } from "lit";
 import { t, localeTag, localizeMessage, countText } from "../i18n";
 import { groupActivity, managementLink } from "../activity";
+import { randomExclusionButton } from "../ui";
 import type { PlayPodApp } from "../main";
 
 export function renderActivity(this: PlayPodApp) {
@@ -54,6 +55,18 @@ export function renderActivity(this: PlayPodApp) {
                     ${event.kind === "feed_added" ? countText(event.count, "{count} Episode", "{count} Episoden") : event.podcast}${!link ? html` · ${t("Inzwischen gelöscht")}` : nothing}
                   </p>
                 </div>
+                ${
+                  event.kind !== "completed" &&
+                  event.feed_id !== null &&
+                  event.random_excluded !== null
+                    ? randomExclusionButton(
+                        event.feed_id,
+                        event.podcast,
+                        event.random_excluded,
+                        this.busy,
+                      )
+                    : nothing
+                }
               </article>`;
             })}
           </div>

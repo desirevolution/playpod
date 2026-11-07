@@ -120,7 +120,7 @@ export function feedForm(this: PlayPodApp, feed?: Feed) {
           feed ? "PUT" : "POST",
           {
             url: String(data.get("url")),
-            title: String(data.get("title")),
+            display_title: String(data.get("title")).trim() || null,
             favorite: data.get("favorite") === "on",
           },
         );
@@ -137,7 +137,8 @@ export function feedForm(this: PlayPodApp, feed?: Feed) {
       >${t("Anzeigename")}<input
         name="title"
         type="text"
-        .value=${feed?.title || ""}
+        .value=${feed?.display_title || ""}
+        maxlength="500"
         placeholder=${t("Wird aus dem Feed übernommen")} /></label
     ><label
       >${t("RSS-Feed-URL")}<input
@@ -154,7 +155,7 @@ export function feedForm(this: PlayPodApp, feed?: Feed) {
       />${t("Als Favorit markieren")}</label
     >
     <p class="small muted">
-      ${t("Der Episodenkatalog wird beim Feedabruf aktualisiert. Der Anzeigename kann dabei durch den Feedtitel ersetzt werden.")}
+      ${t("Ohne Anzeigenamen wird der Titel aus dem Feed verwendet.")}
     </p>
     <div class="row">
       <button type="button" class="ghost" data-action="close">

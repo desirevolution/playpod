@@ -299,8 +299,15 @@ export const english: Record<string, string> = {
   "Wird aus dem Feed übernommen": "Taken from the feed",
   "RSS-Feed-URL": "RSS feed URL",
   "Als Favorit markieren": "Mark as favorite",
-  "Der Episodenkatalog wird beim Feedabruf aktualisiert. Der Anzeigename kann dabei durch den Feedtitel ersetzt werden.":
-    "Refreshing the feed updates its episodes. The display name may be replaced by the feed title.",
+  "Ohne Anzeigenamen wird der Titel aus dem Feed verwendet.":
+    "Leave the display name empty to use the feed title.",
+  "Podcast „{title}“ wieder für Zufallswiedergabe zulassen":
+    "Allow podcast “{title}” in shuffle again",
+  "Podcast „{title}“ von Zufallswiedergabe ausschließen":
+    "Exclude podcast “{title}” from shuffle",
+  "Für Zufallswiedergabe zulassen": "Allow in shuffle",
+  "Von Zufallswiedergabe ausschließen": "Exclude from shuffle",
+  "Von Zufallswiedergabe ausgeschlossen": "Excluded from shuffle",
   "Podcast gespeichert.": "Podcast saved.",
   "Podcast hinzugefügt. Feedabruf läuft.": "Podcast added. Refreshing feed.",
   "Originalquellen manuell prüfen. Es wird nichts automatisch gelöscht. Ein erreichbarer Server bestätigt noch nicht die vollständige Abspielbarkeit.":

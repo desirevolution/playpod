@@ -29,6 +29,8 @@ export type Feed = {
   url: string;
   title: string;
   favorite: number;
+  display_title: string | null;
+  random_excluded: boolean;
   cover: string;
   last_success: number | null;
   error: string;
@@ -165,6 +167,7 @@ export type ActivityEvent = {
   feed_id: number | null;
   title: string;
   podcast: string;
+  random_excluded: boolean | null;
   count: number;
   target: string;
 };

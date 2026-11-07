@@ -19,6 +19,7 @@ class FeedInput(Input):
     url: str = Field(min_length=1, max_length=4000)
     title: str = Field(default='', max_length=500)
     favorite: bool = False
+    display_title: str | None = Field(default=None, max_length=500)
 
 
 class YouTubeInput(Input):
@@ -188,6 +189,8 @@ class FeedResult(BaseModel):
     url: str
     title: str
     favorite: int
+    display_title: str | None
+    random_excluded: bool
     kind: Literal['rss', 'local', 'links', 'yt_playlist', 'yt_channel']
     episode_count: int
     error: str
@@ -246,6 +249,7 @@ class ActivityResult(BaseModel):
     feed_id: int | None
     title: str
     podcast: str
+    random_excluded: bool | None
     count: int
     target: Literal['', 'mpd', 'browser']
 

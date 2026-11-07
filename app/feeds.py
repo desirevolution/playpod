@@ -155,7 +155,8 @@ class FeedJobs:
             for values in normalized:
                 key, guid, title_e, url_e, description, cover_e, published, duration = values
                 # A changed/introduced GUID can still refer to the same existing enclosure.
-                row = db.execute("SELECT id FROM episodes WHERE feed_id=? AND (source_key=? OR url=?) ORDER BY id LIMIT 1", (feed_id, key, url_e)).fetchone()
+                row = db.execute("""SELECT id FROM episodes WHERE feed_id=? AND (source_key=? OR url=?)
+                    ORDER BY (source_key=?) DESC, id LIMIT 1""", (feed_id, key, url_e, key)).fetchone()
                 if row:
                     db.execute("UPDATE episodes SET source_key=?,guid=?,title=?,url=?,description=?,cover=?,published=?,duration=CASE WHEN ?>0 THEN ? ELSE duration END WHERE id=?", (*values[:-1], duration, duration, row[0]))
                 else:

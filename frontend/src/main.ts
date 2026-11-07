@@ -411,6 +411,7 @@ export class PlayPodApp extends LitElement {
   async loadManagement() {
     if (this.view !== "management") return;
     const seq = ++this.sequence;
+    const epoch = this.commandEpoch;
     const args = new URLSearchParams({
       q: this.query,
       filter: this.filter,
@@ -427,7 +428,7 @@ export class PlayPodApp extends LitElement {
         ),
         this.api<{ items: Episode[]; total: number }>("episodes?" + args),
       ]);
-      if (seq === this.sequence) {
+      if (seq === this.sequence && epoch === this.commandEpoch) {
         this.feeds = feeds;
         this.episodes = result.items;
         this.total = result.total;
@@ -480,13 +481,14 @@ export class PlayPodApp extends LitElement {
   async loadActivity(more = false) {
     if (this.view !== "activity" || this.activityLoading) return;
     const seq = ++this.activitySequence;
+    const epoch = this.commandEpoch;
     this.activityLoading = true;
     const args = new URLSearchParams({ kind: this.activityFilter });
     if (more && this.activityCursor)
       args.set("before", String(this.activityCursor));
     try {
       const page = await this.rawApi<ActivityPage>("activity?" + args);
-      if (seq !== this.activitySequence) return;
+      if (seq !== this.activitySequence || epoch !== this.commandEpoch) return;
       const overlaps = page.items.some((event) =>
         this.activityItems.some((old) => old.id === event.id),
       );
@@ -767,7 +769,6 @@ export class PlayPodApp extends LitElement {
         if (f)
           await this.api("feeds/" + id, "PUT", {
             url: f.url,
-            title: f.title,
             favorite: !f.favorite,
           });
         break;
@@ -816,6 +817,23 @@ export class PlayPodApp extends LitElement {
     b.closest(".action-menu")?.removeAttribute("open");
     const action = b.dataset.action!,
       id = Number(b.dataset.id) || undefined;
+    if (action === "random-excluded" && id) {
+      const excluded = b.dataset.value === "true";
+      void this.perform(async () => {
+        await this.api(`feeds/${id}/random-excluded`, "PUT", {
+          value: excluded,
+        });
+        this.feeds = this.feeds.map((feed) =>
+          feed.id === id ? { ...feed, random_excluded: excluded } : feed,
+        );
+        this.activityItems = this.activityItems.map((event) =>
+          event.feed_id === id
+            ? { ...event, random_excluded: excluded }
+            : event,
+        );
+      });
+      return;
+    }
     if (action === "link-add") {
       this.linkKind = "single";
       this.linkAll = false;

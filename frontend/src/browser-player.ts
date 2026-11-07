@@ -509,7 +509,6 @@ export class BrowserPlayer {
       if (entry) entry.queue_error = t("Manuell übersprungen");
       this.waiting = null;
     }
-    const gen = this.generation;
     const old = this.current
       ? {
           id: this.current.id,
@@ -520,7 +519,29 @@ export class BrowserPlayer {
           queue: [...this.queue],
         }
       : null;
+    const tryStart = async (id: number, fromStart: boolean) => {
+      try {
+        const started = await this.start(id, restartTimer, fromStart);
+        // A pending download or a newer playback command owns the next step.
+        if (started) this.undo = manual ? old : null;
+        return true;
+      } catch (e) {
+        if ((e as Error).name === "NotAllowedError") throw e;
+        const entry = this.queue.find((e) => e.id === id);
+        if (entry)
+          entry.queue_error = t(
+            "Episode konnte im Browser nicht gestartet werden",
+          );
+        return false;
+      }
+    };
     try {
+      const queued = this.queue.filter((e) => !e.queue_error);
+      for (const entry of queued) {
+        if (await tryStart(entry.id, false)) return;
+      }
+
+      const gen = this.generation;
       const candidates =
         this.whenQueueEmpty === "stop"
           ? []
@@ -531,40 +552,24 @@ export class BrowserPlayer {
                 this.whenQueueEmpty,
             );
       if (gen !== this.generation) return;
-      const queued = this.queue.filter((e) => !e.queue_error).map((e) => e.id);
-      const others = candidates
+      const failed = new Set(this.queue.map((e) => e.id));
+      const eligible = candidates
         .map((e) => e.id)
-        .filter((id) => !queued.includes(id) && id !== this.current?.id);
-      const ids = [...queued, ...others];
-      if (!ids.length && !queued.length && candidates.length)
-        ids.push(candidates[0].id);
+        .filter((id) => !failed.has(id));
+      const others = eligible.filter((id) => id !== this.current?.id);
+      const ids = others.length ? others : eligible;
       for (const id of ids.slice(0, 5)) {
-        try {
-          const started = await this.start(
-            id,
-            restartTimer,
-            !queued.includes(id),
-          );
-          if (!started) return;
-          this.undo = manual ? old : null;
-          return;
-        } catch (e) {
-          if ((e as Error).name === "NotAllowedError") throw e;
-          const entry = this.queue.find((e) => e.id === id);
-          if (entry)
-            entry.queue_error = t(
-              "Episode konnte im Browser nicht gestartet werden",
-            );
-        }
+        if (await tryStart(id, true)) return;
       }
-      if (manual && !ids.length)
+      const attempted = queued.length || ids.length;
+      if (manual && !attempted)
         throw new Error(
           this.whenQueueEmpty === "stop"
             ? t("Warteschlange ist leer")
             : t("Keine passende Episode verfügbar"),
         );
       this.audio.pause();
-      this.error = ids.length
+      this.error = attempted
         ? t("Keine weitere im Browser abspielbare Episode vorhanden")
         : "";
       this.changed();

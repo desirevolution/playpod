@@ -252,3 +252,32 @@ test('next preserves timer extensions while an explicit default selects a fresh 
   await p.command('queue','POST',{episode_id:3});await p.command('playback/next','POST',{timer:'default'});
   assert.equal(p.left,900);assert.equal(p.current.id,3);
 });
+
+test('a playable queue entry starts without contacting the random endpoint', async t => {
+  const {p, audio, request} = rig(t);
+  p.request = (path, ...args) => {
+    assert.ok(!path.startsWith('browser/candidates'));
+    return request(path, ...args);
+  };
+  await p.command('queue', 'POST', {episode_id: 2});
+  await p.play();
+  assert.equal(p.current.id, 2);
+  assert.equal(audio.paused, false);
+});
+
+test('random candidates are requested after the queue has failed', async t => {
+  const {p, calls, request} = rig(t);
+  p.request = (path, ...args) => {
+    if (path === 'browser/episodes/2/source') {
+      calls.push({path});
+      return Promise.reject(new Error('Source unavailable'));
+    }
+    return request(path, ...args);
+  };
+  await p.command('queue', 'POST', {episode_id: 2});
+  await p.play();
+  const paths = calls.map(call => call.path);
+  assert.ok(paths.indexOf('browser/episodes/2/source') < paths.findIndex(path => path.startsWith('browser/candidates')));
+  assert.ok(p.queue[0].queue_error);
+  assert.equal(p.current.id, 1);
+});

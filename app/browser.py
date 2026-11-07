@@ -27,7 +27,7 @@ def add_browser_routes(app, db, player, media, downloads):
     def candidates(favorites_only: bool = False, selection: Literal['random','random_unheard'] = 'random'):
         return db.rows("""SELECT e.id FROM episodes e JOIN feeds f ON f.id=e.feed_id
             LEFT JOIN media_roots r ON r.id=e.media_root_id
-            WHERE e.hidden=0 AND (?=0 OR f.favorite=1) AND (?='random' OR e.completed=0)
+            WHERE e.hidden=0 AND f.random_excluded=0 AND (?=0 OR f.favorite=1) AND (?='random' OR e.completed=0)
             AND (e.source_type<>'web' OR EXISTS(SELECT 1 FROM downloads d WHERE d.episode_id=e.id AND d.state='ready'))
             AND (e.url<>'' OR (e.local_source IS NOT NULL AND e.source_present=1 AND r.enabled=1))
             ORDER BY RANDOM()""",(favorites_only,selection))

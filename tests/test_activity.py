@@ -131,9 +131,62 @@ def test_v4_upgrade_backs_up_and_preserves_catalog_without_backfill(tmp_path):
     db.execute('DELETE FROM schema_migrations WHERE version=5')
     db.execute('PRAGMA user_version=4')
     restored = Database(path)
-    assert restored.one('PRAGMA user_version')['user_version'] == 6
+    assert restored.one('PRAGMA user_version')['user_version'] == 7
     assert restored.one('SELECT position FROM episodes')['position'] == 123
     assert restored.rows('SELECT * FROM activity') == []
     with sqlite3.connect(str(path)+'.before-v5.sqlite3') as backup:
         assert backup.execute('PRAGMA user_version').fetchone()[0] == 4
         assert backup.execute('SELECT position FROM episodes').fetchone()[0] == 123
+
+
+def test_feed_random_exclusion_is_shared_by_activity_browser_and_mpd(rig):
+    c, player, db, _, _ = rig
+    with db.connect() as conn:
+        record(conn, 'feed_added', feed_id=1)
+        record(conn, 'episode_added', episode_id=1)
+    path = '/api/v1/feeds/1/random-excluded'
+
+    for _ in range(2):
+        assert c.put(path, json={'value': True}).json() == {'value': True}
+    assert c.put('/api/v1/feeds/99/random-excluded', json={'value': True}).status_code == 404
+    assert all(item['random_excluded'] is True for item in events(c, kind='new')['items'])
+    feeds = {feed['id']: feed for feed in c.get('/api/v1/feeds').json()}
+    assert feeds[1]['random_excluded'] is True and feeds[1]['favorite'] == 1
+
+    db.execute('UPDATE episodes SET completed=1 WHERE id=4')
+    for policy, expected in [('random', {4, 5}), ('random_unheard', {5})]:
+        player.saved['when_queue_empty'] = policy
+        assert player.random_episode()['id'] in expected
+        candidates = c.get('/api/v1/browser/candidates', params={'selection': policy}).json()
+        assert {ep['id'] for ep in candidates} == expected
+    player.mode = True
+    assert player.random_episode() is None
+    assert c.get('/api/v1/browser/candidates?favorites_only=true').json() == []
+    assert c.get('/api/v1/browser/episodes/1/source').is_success
+    assert c.post('/api/v1/episodes/play', json={'episode_id': 1}).is_success
+    assert c.post('/api/v1/queue', json={'episode_id': 2}).is_success
+    assert c.post('/api/v1/playback/next').json()['current']['id'] == 2
+
+    assert c.put(path, json={'value': False}).json() == {'value': False}
+    assert all(item['random_excluded'] is False for item in events(c, kind='new')['items'])
+    assert player.random_episode()['feed_id'] == 1
+    assert {ep['id'] for ep in c.get('/api/v1/browser/candidates?favorites_only=true').json()} == {1, 2, 3}
+
+
+def test_v6_upgrade_backs_up_and_defaults_feeds_to_included(tmp_path):
+    path = tmp_path / 'player.sqlite3'
+    db = Database(path)
+    db.execute("INSERT INTO feeds(url,title,last_success) VALUES('http://feed','Feed title',100)")
+    db.execute("INSERT INTO feeds(url,title) VALUES('http://pending','Custom title')")
+    db.execute('ALTER TABLE feeds DROP COLUMN display_title')
+    db.execute('ALTER TABLE feeds DROP COLUMN random_excluded')
+    db.execute('DELETE FROM schema_migrations WHERE version=7')
+    db.execute('PRAGMA user_version=6')
+
+    upgraded = Database(path)
+    assert upgraded.rows('SELECT display_title,random_excluded FROM feeds ORDER BY id') == [
+        {'display_title': None, 'random_excluded': 0},
+        {'display_title': 'Custom title', 'random_excluded': 0},
+    ]
+    with sqlite3.connect(str(path) + '.before-v7.sqlite3') as backup:
+        assert backup.execute('PRAGMA user_version').fetchone()[0] == 6

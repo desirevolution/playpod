@@ -53,7 +53,7 @@ class Downloads:
                 self.file(row['id'])
             except PlayerError:
                 pass
-        items = self.db.rows('SELECT d.*,e.title,e.source_type,f.title AS podcast FROM downloads d JOIN episodes e ON e.id=d.episode_id JOIN feeds f ON f.id=e.feed_id ORDER BY d.updated DESC')
+        items = self.db.rows('SELECT d.*,e.title,e.source_type,COALESCE(f.display_title,f.title) AS podcast FROM downloads d JOIN episodes e ON e.id=d.episode_id JOIN feeds f ON f.id=e.feed_id ORDER BY d.updated DESC')
         files = self.managed_files()
         known = {r['id'] for r in self.db.rows('SELECT id FROM downloads')}
         ready = [row for row in items if row['state'] == 'ready']

@@ -12,12 +12,12 @@ def record(conn, kind, *, episode_id=None, feed_id=None, count=1, target='', key
     now = time.time() if now is None else now
     prune(conn, now)
     if episode_id is not None:
-        row = conn.execute('SELECT e.title,f.title,e.feed_id FROM episodes e JOIN feeds f ON f.id=e.feed_id WHERE e.id=?', (episode_id,)).fetchone()
+        row = conn.execute('SELECT e.title,COALESCE(f.display_title,f.title),e.feed_id FROM episodes e JOIN feeds f ON f.id=e.feed_id WHERE e.id=?', (episode_id,)).fetchone()
         if not row:
             return
         title, podcast, feed_id = row
     else:
-        row = conn.execute('SELECT title FROM feeds WHERE id=?', (feed_id,)).fetchone()
+        row = conn.execute('SELECT COALESCE(display_title,title) FROM feeds WHERE id=?', (feed_id,)).fetchone()
         if not row:
             return
         title, podcast = '', row[0]
@@ -38,7 +38,7 @@ def listing(db, kind='all', before=None, limit=50):
     with db.connect() as conn:
         prune(conn)
         rows = [dict(row) for row in conn.execute('''SELECT a.id,a.kind,a.created,a.episode_id,a.feed_id,a.count,a.target,
-            COALESCE(e.title,a.title) AS title, COALESCE(f.title,a.podcast) AS podcast
+            COALESCE(e.title,a.title) AS title, COALESCE(f.display_title,f.title,a.podcast) AS podcast, f.random_excluded
             FROM activity a LEFT JOIN episodes e ON e.id=a.episode_id
             LEFT JOIN feeds f ON f.id=a.feed_id''' + where + ' ORDER BY a.id DESC LIMIT ?', (*args, limit + 1))]
     return {'items': rows[:limit], 'next_cursor': rows[limit-1]['id'] if len(rows) > limit else None}

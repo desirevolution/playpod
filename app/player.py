@@ -78,13 +78,13 @@ class Player:
         return min(duration, elapsed) if duration else elapsed
 
     def episode(self, episode_id):
-        row = self.db.one("SELECT e.*,f.title AS podcast,f.favorite,f.cover AS feed_cover,f.kind AS feed_kind FROM episodes e JOIN feeds f ON f.id=e.feed_id WHERE e.id=?", (episode_id,))
+        row = self.db.one("SELECT e.*,COALESCE(f.display_title,f.title) AS podcast,f.favorite,f.cover AS feed_cover,f.kind AS feed_kind FROM episodes e JOIN feeds f ON f.id=e.feed_id WHERE e.id=?", (episode_id,))
         if not row:
             raise PlayerError("Episode nicht gefunden", code='not_found', status_code=404)
         return row
 
     def queue(self):
-        return self.db.rows("SELECT e.*,f.title AS podcast,f.cover AS feed_cover,q.rank,q.error AS queue_error FROM queue q JOIN episodes e ON e.id=q.episode_id JOIN feeds f ON f.id=e.feed_id ORDER BY q.rank,e.id")
+        return self.db.rows("SELECT e.*,COALESCE(f.display_title,f.title) AS podcast,f.cover AS feed_cover,q.rank,q.error AS queue_error FROM queue q JOIN episodes e ON e.id=q.episode_id JOIN feeds f ON f.id=e.feed_id ORDER BY q.rank,e.id")
 
     def persist(self):
         self.db.put("playback", self.saved)
@@ -535,7 +535,7 @@ class Player:
         # Avoid the current episode if there are alternatives; a single-episode library can repeat.
         base = """SELECT e.* FROM episodes e JOIN feeds f ON f.id=e.feed_id
                   LEFT JOIN media_roots r ON r.id=e.media_root_id
-                  WHERE e.hidden=0 AND (e.source_type<>'web' OR EXISTS(SELECT 1 FROM downloads d WHERE d.episode_id=e.id AND d.state='ready'))
+                  WHERE e.hidden=0 AND f.random_excluded=0 AND (e.source_type<>'web' OR EXISTS(SELECT 1 FROM downloads d WHERE d.episode_id=e.id AND d.state='ready'))
                   AND (e.url<>'' OR (e.local_source IS NOT NULL AND e.source_present=1 AND r.enabled=1))""" + scope
         rows = [r for r in self.db.rows(base + " ORDER BY RANDOM()", args) if r["id"] not in exclude]
         return next((e for e in rows if e["id"] != self.saved["episode_id"]), rows[0] if rows else None)
