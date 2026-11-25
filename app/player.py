@@ -161,20 +161,34 @@ class Player:
         return True
 
     def _wait_for_tts_audio(self, url):
-        """A successful MPD play is not enough if the track has zero duration."""
+        """Check that MPD really decodes TTS, including streams with unknown length.
+
+        MPD reports ``duration=0`` for some playable HTTP streams while their
+        ``elapsed`` counter advances normally. Rejecting those after two seconds
+        used to interrupt a title mid-sentence by immediately starting the episode.
+        A genuinely empty/unplayable clip never makes playback progress.
+        """
         status, song = self._read()
         deadline = time.monotonic() + 2
         while time.monotonic() < deadline:
             if status['mpd_error'] or (song.get('file') and song['file'] != url):
                 break
-            if status['state'] == 'play' and status['duration'] > 0:
-                return status, song
+            if status['state'] == 'play':
+                if status['duration'] > 0:
+                    return status, song
+                if status['elapsed'] >= .5:
+                    log.info('TTS läuft in MPD mit unbekannter Audiodauer (elapsed=%.1f s)', status['elapsed'])
+                    return status, song
+            # A brief decoder startup can transiently report play/0/0 even for
+            # an empty file. Do not accept it without evidence of progress.
             time.sleep(.1)
             status, song = self._read()
         if status['mpd_error']:
             raise PlayerError('MPD-TTS-Decoderfehler: ' + status['mpd_error'])
+        if song.get('file') and song['file'] != url:
+            raise PlayerError('MPD hat während der TTS-Prüfung die Audioquelle gewechselt')
         if status['state'] == 'play' and not status['duration']:
-            raise PlayerError('MPD meldet für die TTS-Datei eine Audiodauer von 0 Sekunden')
+            raise PlayerError('MPD meldet für die TTS-Datei 0 Sekunden Audiodauer und keinen Wiedergabefortschritt')
         raise PlayerError('MPD konnte die TTS-Datei nicht abspielen')
 
     def episode(self, episode_id):

@@ -145,6 +145,61 @@ def test_mode_generation_does_not_block_and_is_cancelled_by_new_source(announcem
     assert mpd.song['file'].endswith('/2.mp3')
 
 
+def test_title_stream_with_unknown_duration_and_advancing_elapsed_finishes_normally(announcement):
+    """An MPD stream without a duration must not be cut after the 2s probe."""
+    _, player, _, mpd, _ = announcement
+    original_start, original_snapshot = mpd.start, mpd.snapshot
+    samples = [0]
+
+    def start(url, position=0, **kwargs):
+        song_id = original_start(url, position, **kwargs)
+        mpd.duration = 0 if url == AUDIO else 1200
+        return song_id
+
+    def snapshot():
+        if mpd.song.get('file') == AUDIO and mpd.state == 'play':
+            samples[0] += 1
+            mpd.elapsed = samples[0] * .3
+        return original_snapshot()
+
+    mpd.start, mpd.snapshot = start, snapshot
+    player.start_episode(1)
+    assert samples[0] >= 2
+    assert player.saved['intro']['episode_id'] == 1
+    assert mpd.song['file'] == AUDIO
+    assert player.status['duration'] == 0
+    # Natural EOF still hands control back to the requested episode.
+    mpd.state = 'stop'
+    player.sync()
+    assert player.saved['episode_id'] == 1
+    assert not player.saved.get('intro')
+    assert mpd.song['file'].endswith('/1.mp3')
+
+
+def test_custom_stream_with_unknown_duration_is_accepted(announcement):
+    """The same MPD decoder check is used by queued free-text announcements."""
+    _, player, _, mpd, _ = announcement
+    player.start_episode(1, announce=False)
+    original_start, original_snapshot = mpd.start, mpd.snapshot
+
+    def start(url, position=0, **kwargs):
+        result = original_start(url, position, **kwargs)
+        mpd.duration = 0 if url == AUDIO else 1200
+        return result
+
+    def snapshot():
+        if mpd.song.get('file') == AUDIO and mpd.state == 'play':
+            mpd.elapsed = min(mpd.elapsed + .3, 1.2)
+        return original_snapshot()
+
+    mpd.start, mpd.snapshot = start, snapshot
+    job = player.announce('Dies ist ein Stream mit unbekannter Dauer.')
+    assert player.process_announcements()
+    assert player.announcement_status(job['id'])['state'] == 'playing'
+    assert mpd.song['file'] == AUDIO
+    assert player.saved['intro']['kind'] == 'custom'
+
+
 def test_title_zero_second_audio_falls_back_to_episode(announcement, caplog):
     _, player, _, mpd, _ = announcement
     original_start = mpd.start
