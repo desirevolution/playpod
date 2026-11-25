@@ -54,7 +54,11 @@ class Handler(socketserver.StreamRequestHandler):
                         if s.drop_read:
                             s.drop_read=False
                             return
-                        reply=f'state: {s.state}\nelapsed: {s.elapsed}\nduration: 1200\nvolume: {s.volume}\n'
+                        # Report the active track's duration, not the podcast's
+                        # 1200-second default for short generated TTS audio.
+                        url=s.songs.get(s.song_id)
+                        duration=s.durations.get(url, 1200)
+                        reply=f'state: {s.state}\nelapsed: {s.elapsed}\nduration: {duration}\nvolume: {s.volume}\n'
                     elif name=='currentsong':reply=s.song_info()
                     elif name=='playlistinfo':reply=''.join(f'file: {url}\nId: {id_}\n' for id_,url in s.songs.items())
                     elif name=='addid':
@@ -90,7 +94,7 @@ def protocol_server():
     s.condition=threading.Condition()
     s.connections=0;s.version=0;s.commands=[];s.peers=set();s.idlers=set()
     s.stopped=False;s.drop_read=False;s.drop_write=False
-    s.state='stop';s.elapsed=0;s.volume=55;s.counter=0;s.song_id=None;s.songs={}
+    s.state='stop';s.elapsed=0;s.volume=55;s.counter=0;s.song_id=None;s.songs={};s.durations={}
     s.song_info=lambda: f'file: {s.songs[s.song_id]}\nId: {s.song_id}\n' if s.song_id in s.songs else ''
     thread=threading.Thread(target=s.serve_forever,daemon=True);thread.start()
     m=MPD(Settings(mpd_host='127.0.0.1',mpd_port=s.server_address[1]))
@@ -242,8 +246,15 @@ def test_announcement_timeout_still_advances_without_idle_event(rig):
             eventually(lambda:p.status['state']=='stop')
             n.title_audio=lambda text:'http://ha.test/title.wav'
             n.settings=SimpleNamespace(tts_playback_timeout_seconds=1)
+            # The normal 1200-second mock duration belongs to the podcast,
+            # whereas this TTS clip is only one second long. If the mock
+            # reports 1200 seconds, the adaptive TTS timeout correctly waits
+            # 1215 seconds instead of exercising the one-second fallback.
+            with s.condition:
+                s.durations['http://ha.test/title.wav']=1
             p.start_episode(1)
             assert p.saved.get('intro')
+            assert p.saved['intro']['timeout_remaining']==1
             eventually(lambda:p.saved['episode_id']==1)
             assert not p.saved.get('intro') and s.state=='play'
         finally:p.close()
