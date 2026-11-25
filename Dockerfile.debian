@@ -17,8 +17,8 @@ WORKDIR /app
 COPY --from=javascript /out/qjs /usr/local/bin/qjs
 COPY --from=javascript /out/LICENSE.quickjs-ng /usr/local/share/licenses/quickjs-ng/LICENSE
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg ca-certificates tzdata && rm -rf /var/lib/apt/lists/*
-COPY requirements.lock ./
-RUN pip install --no-cache-dir --no-compile -r requirements.lock && \
+COPY requirements-lock.txt ./
+RUN pip install --no-cache-dir --no-compile -r requirements-lock.txt && \
     groupadd --gid 10001 playpod && useradd --uid 10001 --gid playpod --no-create-home playpod && \
     mkdir /data && chown playpod:playpod /data
 COPY --chown=playpod:playpod app ./app

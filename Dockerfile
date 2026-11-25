@@ -16,8 +16,8 @@ FROM python:3.12-alpine3.23 AS wheels
 # dependency only provides source distributions for the target architecture.
 RUN apk add --no-cache build-base cargo libffi-dev openssl-dev
 WORKDIR /build
-COPY requirements.lock ./
-RUN pip wheel --no-cache-dir --wheel-dir=/wheels -r requirements.lock
+COPY requirements-lock.txt ./
+RUN pip wheel --no-cache-dir --wheel-dir=/wheels -r requirements-lock.txt
 
 FROM python:3.12-alpine3.23
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 SQLITE_PATH=/data/playpod.sqlite3 STATIC_DIR=/app/frontend/dist YTDLP_JS_RUNTIME=quickjs
@@ -25,10 +25,10 @@ WORKDIR /app
 COPY --from=javascript /out/qjs /usr/local/bin/qjs
 COPY --from=javascript /out/LICENSE.quickjs-ng /usr/local/share/licenses/quickjs-ng/LICENSE
 RUN apk add --no-cache ffmpeg ca-certificates libstdc++ libffi tzdata
-COPY requirements.lock ./
+COPY requirements-lock.txt ./
 # BuildKit mounts avoid storing the wheel archive in a runtime image layer.
 RUN --mount=type=bind,from=wheels,source=/wheels,target=/wheels \
-    pip install --no-index --no-cache-dir --no-compile --find-links=/wheels -r requirements.lock && \
+    pip install --no-index --no-cache-dir --no-compile --find-links=/wheels -r requirements-lock.txt && \
     addgroup -g 10001 -S playpod && adduser -u 10001 -S -D -H -G playpod playpod && \
     mkdir /data && chown playpod:playpod /data
 COPY --chown=playpod:playpod app ./app
