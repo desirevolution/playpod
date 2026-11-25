@@ -202,6 +202,7 @@ class Notifications:
                     self.last_sent = state
 
     def title_audio(self, title):
+        """Request an MPD-reachable audio URL; report failures without text or URL leaks."""
         if not self.settings.tts_audio_url:
             return None
         try:
@@ -209,13 +210,26 @@ class Notifications:
                                      headers={'Content-Type': 'text/plain;charset=utf-8'},
                                      timeout=self.settings.tts_timeout_seconds)
             response.raise_for_status()
-            url = response.json().get('url')
-            if not isinstance(url, str) or urlsplit(url).scheme not in ('http', 'https') or not urlsplit(url).netloc:
-                raise ValueError('Keine gültige Audio-URL erhalten')
+            payload = response.json()
+            if not isinstance(payload, dict):
+                raise ValueError('Antwort ist kein JSON-Objekt')
+            url = payload.get('url')
+            if not isinstance(url, str):
+                raise ValueError('Antwort enthält keine Audio-URL')
+            parsed = urlsplit(url)
+            if parsed.scheme not in ('http', 'https') or not parsed.hostname or parsed.username or parsed.password:
+                raise ValueError('Antwort enthält keine gültige HTTP(S)-Audio-URL')
             return url
-        except (requests.RequestException, ValueError, AttributeError):
-            log.warning('TTS-Audiodatei nicht verfügbar')
-            return None
+        except requests.Timeout:
+            log.warning('TTS-Audio nicht verfügbar: HTTP-Timeout nach %s Sekunden', self.settings.tts_timeout_seconds)
+        except requests.HTTPError as exc:
+            status = exc.response.status_code if exc.response is not None else 'unbekannt'
+            log.warning('TTS-Audio nicht verfügbar: HTTP-Status %s', status)
+        except requests.RequestException as exc:
+            log.warning('TTS-Audio nicht verfügbar: HTTP-Transportfehler (%s)', type(exc).__name__)
+        except (ValueError, AttributeError, TypeError) as exc:
+            log.warning('TTS-Audio nicht verfügbar: ungültige Antwort (%s)', exc)
+        return None
 
     def stop(self):
         if self.client:

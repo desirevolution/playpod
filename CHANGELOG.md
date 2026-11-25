@@ -1,6 +1,10 @@
 # Changelog
 
 ## Unreleased
+- TTS-Handoff stabilisiert: Titel- und Modus-Generierung gibt die reentrante Player-Sperre während HTTP frei; spätere PlayPod-Steuerbefehle oder externe MPD-Quellenwechsel haben Vorrang. Tatsächliche Podcastposition vor dem Quellenwechsel erneut gesichert.
+- MPD-TTS-Start erkennt nicht abspielbare/0-Sekunden-Titel (2 Sekunden Anlaufzeit) und startet die Episode stattdessen direkt; fehlgeschlagene freie Ansagen werden als `failed` erfasst und die vorherige Wiedergabe wiederhergestellt.
+- TTS-Wiedergabezeitlimit berücksichtigt bei langen Texten eine Schätzung und die von MPD erkannte Audiodauer. HTTP-Timeout, Statuscodes, Transportfehler und ungültige Antworten werden ohne Textinhalte oder Audio-URLs protokolliert.
+- Regressionstests für Übergang, konkurrierende Befehle, 0-Sekunden-Audio, lange Ansagen und Diagnose; keine Änderung am Node-RED-HTTP-Vertrag oder am Datenbankschema.
 - Einzelne Episoden lassen sich in der Bibliothek und bei neuen Episoden in den Aktivitäten mit einem Sperrsymbol von der Zufallswiedergabe in Browser und MPD ausschließen. Das Upgrade auf Schema 8 legt eine Sicherung an.
 - Der Browser versucht zuerst die Warteschlange. Der RSS-Abruf priorisiert GUID-Treffer bei kollidierenden Audio-URLs und behält eigene Podcast-Anzeigenamen bei. Das Upgrade auf Datenbankschema 7 legt eine Sicherung an.
 - Bibliothek und Suche verwenden bereits geladene YouTube-Metadaten der gewählten App-Sprache. Die Liste aktualisiert sich nach dem Laden der Details sowie bei Sprachwechseln; der gemeinsame Katalog und API-Aufrufe ohne Sprachparameter bleiben unverändert. Listenabrufe lösen keine YouTube-Netzwerkzugriffe aus.

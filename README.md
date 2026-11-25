@@ -62,7 +62,7 @@ Publishing the workflow files alone does not publish an image. See [release inst
 | `MQTT_TOPIC` | `podplayer/status`; retained `play`, `pause`, `stop`, `error` |
 | `TTS_AUDIO_URL` | Optional endpoint returning an audio URL for playback through MPD; see [Node-RED](NODE-RED.md) |
 | `TTS_TIMEOUT_SECONDS` | `10`; timeout while requesting announcement audio |
-| `TTS_PLAYBACK_TIMEOUT_SECONDS` | `120`; maximum active announcement time |
+| `TTS_PLAYBACK_TIMEOUT_SECONDS` | `120`; fallback minimum for active announcement time, automatically increased for long text or known MPD audio duration (up to 1 h of automatic extension) |
 | `RSS_INTERVAL_SECONDS` | `3600`, minimum `60` |
 | `MEDIA_BASE_URL` | PlayPod URL reachable by MPD for local media/downloads; browser playback does not need it |
 | `MEDIA_ROOTS` | JSON object mapping names to absolute container paths; empty by default |

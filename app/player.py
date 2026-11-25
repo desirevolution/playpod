@@ -1,5 +1,6 @@
 """Serialized, server-side playback control. MPD I/O never runs in SQL transactions."""
 import logging
+from contextlib import contextmanager
 import threading
 import time
 import uuid
@@ -9,6 +10,45 @@ from copy import deepcopy
 log = logging.getLogger(__name__)
 DEFAULT_TIMER_SECONDS = 15 * 60
 MPD_RECONCILE_SECONDS = 30
+
+
+class ReentrantPlayerLock:
+    """RLock with an explicit, recursion-safe escape for slow remote TTS I/O.
+
+    A player command may be nested below an API command or the MPD monitor.
+    Temporarily releasing *all* acquisitions lets another control proceed while
+    Node-RED generates speech. The caller must check its generation token after
+    the lock is reacquired before changing MPD or persisted playback state.
+    """
+
+    def __init__(self):
+        self._lock = threading.RLock()
+        self._local = threading.local()
+
+    def __enter__(self):
+        self._lock.acquire()
+        self._local.depth = getattr(self._local, 'depth', 0) + 1
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        self._local.depth -= 1
+        self._lock.release()
+
+    @contextmanager
+    def released(self):
+        depth = getattr(self._local, 'depth', 0)
+        if not depth:
+            raise RuntimeError('Player lock must be held while suspending it')
+        for _ in range(depth):
+            self._local.depth -= 1
+            self._lock.release()
+        try:
+            yield
+        finally:
+            for _ in range(depth):
+                self._lock.acquire()
+                self._local.depth = getattr(self._local, 'depth', 0) + 1
+
 
 
 class PlayerError(Exception):
@@ -26,7 +66,8 @@ class Player:
     def __init__(self, db, mpd, notifications, clock=time.time, media=None):
         self.db, self.mpd, self.notifications, self.clock = db, mpd, notifications, clock
         self.media = media
-        self.lock = threading.RLock()
+        self.lock = ReentrantPlayerLock()
+        self._tts_generation = 0
         self.saved = db.get("playback", {"episode_id": None, "song_id": None, "run_active": False,
             "timer_seconds": 0, "remaining": 0, "deadline": None, "when_queue_empty": "stop"})
         if 'when_queue_empty' not in self.saved:
@@ -76,6 +117,65 @@ class Player:
             elapsed += max(0, self.clock() - self.status_at)
         duration = self.status.get('duration', 0)
         return min(duration, elapsed) if duration else elapsed
+
+    def _invalidate_tts(self):
+        """A newer playback intent always wins over an outstanding TTS request."""
+        self._tts_generation += 1
+
+    def _request_tts(self, text):
+        """Perform remote HTTP I/O without holding any nested player locks."""
+        generation = self._tts_generation
+        with self.lock.released():
+            try:
+                audio = self.notifications.title_audio(text)
+            except Exception as exc:
+                log.warning('TTS-Anfrage fehlgeschlagen (Typ: %s)', type(exc).__name__)
+                audio = None
+        return audio, generation == self._tts_generation and not self.stop_event.is_set()
+
+    def _tts_timeout(self, text, status=None):
+        """Allow full-length speech, even when the configured fallback is shorter."""
+        configured = getattr(getattr(self.notifications, 'settings', None), 'tts_playback_timeout_seconds', 120)
+        # The short configured timeout remains useful for short announcements.
+        # Long passages need an estimated floor, plus MPD's actual track duration
+        # whenever the decoder has supplied it.
+        estimated = len(text) / 8 + 30 if len(text) > 500 else 0
+        duration = (status or {}).get('duration', 0)
+        decoded = duration + 15 if duration > configured else 0
+        return max(configured, min(3600, max(estimated, decoded)))
+
+    def _checkpoint_current_mpd_position(self, expected_song):
+        """Checkpoint at handoff, but never overwrite a newer external MPD source."""
+        status, song = self._read()
+        if (status['state'] in ('play', 'pause') and song.get('file')
+                and (song.get('file'), song.get('id')) != expected_song):
+            # The monitor might not have seen an external MPD client yet.
+            log.info('TTS-Übergang verworfen: externe MPD-Quellenänderung')
+            self.sync()
+            return False
+        if (self.saved.get('intro') or not self.saved.get('episode_id') or not self.last_song
+                or status['state'] not in ('play', 'pause') or status['mpd_error']):
+            return True
+        self.status, self.last_song = status, song
+        self._checkpoint()
+        return True
+
+    def _wait_for_tts_audio(self, url):
+        """A successful MPD play is not enough if the track has zero duration."""
+        status, song = self._read()
+        deadline = time.monotonic() + 2
+        while time.monotonic() < deadline:
+            if status['mpd_error'] or (song.get('file') and song['file'] != url):
+                break
+            if status['state'] == 'play' and status['duration'] > 0:
+                return status, song
+            time.sleep(.1)
+            status, song = self._read()
+        if status['mpd_error']:
+            raise PlayerError('MPD-TTS-Decoderfehler: ' + status['mpd_error'])
+        if status['state'] == 'play' and not status['duration']:
+            raise PlayerError('MPD meldet für die TTS-Datei eine Audiodauer von 0 Sekunden')
+        raise PlayerError('MPD konnte die TTS-Datei nicht abspielen')
 
     def episode(self, episode_id):
         row = self.db.one("SELECT e.*,COALESCE(f.display_title,f.title) AS podcast,f.favorite,f.cover AS feed_cover,f.kind AS feed_kind FROM episodes e JOIN feeds f ON f.id=e.feed_id WHERE e.id=?", (episode_id,))
@@ -211,6 +311,8 @@ class Player:
     def _adopt(self, status, song):
         # External MPD clients may change the song. Never save their position onto the old episode.
         file = song.get("file", "")
+        if file and self.last_song and file != self.last_song.get('file'):
+            self._invalidate_tts()
         matched = self.db.one("SELECT id FROM episodes WHERE url=? ORDER BY id LIMIT 1", (file,)) if file else None
         if file and file == self.saved.get("source_url") and self.saved["episode_id"]:
             matched = self.db.one("SELECT id FROM episodes WHERE id=?", (self.saved["episode_id"],))
@@ -334,6 +436,7 @@ class Player:
 
     def start_episode(self, episode_id, from_start=False, *, announce=True, position_override=None, restart_timer=False, freeze_timer=False):
         with self.lock:
+            self._invalidate_tts()
             if self.saved.get('intro', {}).get('kind') in ('mode', 'custom'):
                 self._interrupt_announcement()
             self._checkpoint()
@@ -359,8 +462,20 @@ class Player:
                     source_url, source_kind = self.media.playback_url(ep)
                 except ValueError as exc:
                     raise PlayerError(str(exc)) from exc
-            # Await the HTTP response before starting either the local or remote source.
-            audio_url = self.notifications.title_audio(ep["title"]) if announce else None
+            # The HTTP call must not block API controls or the MPD monitor.
+            # A command arriving during generation invalidates this handoff.
+            expected_song = (self.last_song.get('file'), self.last_song.get('id'))
+            audio_url, current = self._request_tts(ep['title']) if announce else (None, True)
+            if not current:
+                return
+            # MPD may have advanced while the URL was being generated. Keep the
+            # outgoing podcast's *actual* position, not the pre-request sample.
+            if announce:
+                try:
+                    if not self._checkpoint_current_mpd_position(expected_song):
+                        return
+                except Exception:
+                    log.warning('MPD-Position vor TTS-Wechsel konnte nicht gelesen werden', exc_info=True)
             # Automatic transitions retain their deadline, including TTS generation.
             # A manual wake action instead starts a new period at confirmed playback.
             if not restart_timer and self.saved["deadline"] is not None and self.remaining() <= 0:
@@ -386,10 +501,11 @@ class Player:
             if audio_url:
                 try:
                     song_id, status, song = start_source(audio_url, 0)
-                except Exception:
-                    log.warning('MPD konnte die Titelansage nicht starten; Episode wird direkt versucht')
+                    status, song = self._wait_for_tts_audio(audio_url)
+                except Exception as exc:
+                    log.warning('Titelansage nicht abspielbar (%s); Episode wird direkt gestartet', 'MPD-Audiodauer 0 Sekunden' if '0 Sekunden' in str(exc) else type(exc).__name__)
                 else:
-                    timeout = getattr(getattr(self.notifications, 'settings', None), 'tts_playback_timeout_seconds', 120)
+                    timeout = self._tts_timeout(ep['title'], status)
                     self.saved.update(episode_id=None, song_id=song_id, source_url=audio_url, source_kind='announcement',
                         intro={'episode_id': episode_id, 'position': position, 'source_kind': source_kind,
                                'restart_timer': restart_timer, 'freeze_timer': freeze_timer,
@@ -598,6 +714,7 @@ class Player:
 
     def next(self):
         with self.lock:
+            self._invalidate_tts()
             if self.saved['timer_seconds'] > 0 and self.remaining() <= 0:
                 return
             if self.saved.get('intro', {}).get('kind') in ('mode', 'custom'):
@@ -621,6 +738,7 @@ class Player:
 
     def undo_next(self):
         with self.lock:
+            self._invalidate_tts()
             if not self.undo or self.undo["revision"] != self.revision:
                 raise PlayerError("Keine unveränderte Überspringaktion zum Rückgängigmachen")
             old = self.undo
@@ -714,6 +832,7 @@ class Player:
 
     def play(self, *, restart_timer=True):
         with self.lock:
+            self._invalidate_tts()
             self.sync()
             if self.status["state"] == "error":
                 raise PlayerError(self.error)
@@ -746,6 +865,7 @@ class Player:
 
     def pause(self):
         with self.lock:
+            self._invalidate_tts()
             self.mpd.call("pause", 1)
             self.sync()
             self._checkpoint()
@@ -757,6 +877,7 @@ class Player:
 
     def seek(self, position):
         with self.lock:
+            self._invalidate_tts()
             if self.saved.get('intro'):
                 intro = self.saved['intro']
                 if intro.get('kind') in ('mode', 'custom') and not intro['resume']['song']:
@@ -792,6 +913,7 @@ class Player:
             self.mode = favorite
             self.db.put("favorites_only", favorite)
             if changed:
+                self._invalidate_tts()
                 try:
                     self._announce_mode('Favoriten' if favorite else 'Normal')
                 except Exception:
@@ -933,12 +1055,14 @@ class Player:
             # Mode changes still speak, but join an existing announcement batch.
             self.announce(text)
             return
-        audio = self.notifications.title_audio(text)
-        if not audio:
+        audio, current = self._request_tts(text)
+        if not current or not audio:
             return
         self._start_announcement(text, audio, kind='mode')
 
     def _start_announcement(self, text, audio, *, kind, strict=False, job_id=None):
+        if kind == 'custom':
+            self._invalidate_tts()
         self.sync()
         self._require_mpd()
         current = self.saved.get('intro')
@@ -957,7 +1081,7 @@ class Player:
         if original_intro and original_intro['timeout_at'] is not None:
             original_intro['timeout_remaining'] = max(0, original_intro['timeout_at'] - self.clock())
             original_intro['timeout_at'] = None
-        timeout = getattr(getattr(self.notifications, 'settings', None), 'tts_playback_timeout_seconds', 120)
+        timeout = self._tts_timeout(text)
         intro = {'kind': kind, 'text': text, 'announcement_id': job_id, 'episode_id': display['current']['id'] if display['current'] else None,
                  'position': display['elapsed'], 'display_duration': display['duration'],
                  'source_kind': display['source_kind'], 'url': audio, 'resume': resume,
@@ -977,14 +1101,13 @@ class Player:
                         intro['position'] = paused['elapsed']
                     self.persist()
             self.mpd.start(audio, 0)
-            status, song = self._read()
-            end = time.monotonic() + 2
-            while status['state'] != 'play' and not status['mpd_error'] and time.monotonic() < end:
-                time.sleep(.1)
-                status, song = self._read()
-            if status['state'] != 'play' or status['mpd_error']:
-                raise PlayerError('MPD konnte die Ansage nicht starten')
+            status, song = self._wait_for_tts_audio(audio)
+            intro['timeout_remaining'] = self._tts_timeout(text, status)
+            intro['timeout_at'] = self.clock() + intro['timeout_remaining']
         except Exception as exc:
+            if strict and job_id:
+                self._end_announcement_job(job_id, 'failed', 'MPD konnte die Ansage nicht abspielen')
+            log.warning('TTS-Abspielen fehlgeschlagen (Typ: %s)', type(exc).__name__)
             try:
                 self._finish_announcement()
             except Exception as restore_error:
@@ -1076,6 +1199,7 @@ class Player:
 
     def delete_episodes(self, ids):
         with self.lock:
+            self._invalidate_tts()
             if self.saved.get('waiting_download', {}).get('episode_id') in ids:
                 self.saved.pop('waiting_download', None)
             if self.saved["episode_id"] in ids or self.saved.get("intro", {}).get("episode_id") in ids:

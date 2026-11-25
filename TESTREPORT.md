@@ -132,3 +132,11 @@ Zusätzlich den getrennt gefundenen Wiederholungsimportfehler behoben: Gesehene 
 Validierung: vollständiger 299er-Backendlauf nach der Wiederholungsimportreparatur erfolgreich. Danach 22 YouTube-Tests (inklusive 7 zusätzlicher Aufzeichnungs-/Downloadfilterfälle) und 28 Feed-/Download-/Scheduler-/Katalogtests erfolgreich. 51 Frontend-Tests, TypeScript/Vite-Build und Versionsprüfung erfolgreich. Kein behaupteter vollständiger Lauf der inzwischen 306 Backendtests.
 
 UX: redundanten Episoden-Auswahlbutton im leeren Player entfernt, der Zugang über die Warteschlange bleibt. Kein zusätzlicher Stop-Befehl; UI benennt Ende einer abgeschlossenen Episode „Wiedergabe beendet“, leeren/stillstehenden Player „Keine Wiedergabe“. Keine Änderung der API-State-Werte.
+
+## TTS reliability follow-up (URL-based Home Assistant / MPD)
+
+- Fixed five TTS reliability findings without changing the Node-RED `text/plain` -> `{"url": "..."}` contract or using `tts.speak`.
+- Player-lock escape is explicit and recursion-safe; generation tokens prevent a slower request from replacing newer playback, including external MPD source changes. Outgoing podcast position is read afresh immediately before the handoff.
+- MPD startup rejects TTS tracks without a known positive duration after a 2-second grace period. Title errors fall back to direct playback; custom announcement errors mark the job failed and restore the interrupted source. The check detects absent duration, not silent-but-valid encoded audio.
+- Dynamic playback limit uses configured minimum, long-text estimate and MPD-reported duration where present; HTTP failure logs preserve HTTP status/exception class but not URL or message contents.
+- Validation: 137 focused backend tests passed (using import-only test shims for unavailable optional dependencies), including nine new concurrency/zero-length/timeout/logging cases. Real MPD protocol test not run because `python-mpd2` is unavailable. Additional API/media/playback tests partially passed; the unrelated yt-dlp and RSS feed cases need real runtime dependencies. Real Home Assistant, MPD, loudspeaker and end-to-end Node-RED checks remain necessary.
